@@ -1,5 +1,8 @@
-mod can_raise_error;
-mod has_error_type;
+#![no_std]
 
-pub use can_raise_error::*;
-pub use has_error_type::*;
+extern crate alloc;
+
+pub mod impls;
+pub mod traits;
+
+pub use traits::*;
