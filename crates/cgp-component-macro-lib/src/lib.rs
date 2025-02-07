@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 
 /*!
    This is an internal crate used by the `cgp-component-macro` crate. We implement the
@@ -9,15 +9,18 @@
 
 extern crate alloc;
 
-pub mod delegate_components;
-pub mod derive_component;
-pub mod for_each_replace;
-pub mod getter_component;
-pub mod preset;
-pub mod type_component;
+pub(crate) mod delegate_components;
+pub(crate) mod derive_component;
+pub(crate) mod derive_provider;
+pub(crate) mod for_each_replace;
+pub(crate) mod getter_component;
+pub(crate) mod preset;
+pub(crate) mod type_component;
 
 #[cfg(test)]
 mod tests;
+
+pub use derive_provider::derive_provider;
 
 pub use crate::delegate_components::delegate_components;
 pub use crate::derive_component::derive_component;

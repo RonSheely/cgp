@@ -8,14 +8,12 @@ use syn::punctuated::Punctuated;
 use syn::token::{Colon, Plus, Pound};
 use syn::{parse_quote, Attribute, Ident, ItemImpl, ItemTrait, ItemType, TypeParamBound};
 
+use crate::derive_provider::derive_is_provider_for;
+
 pub fn derive_type_component(stream: TokenStream) -> syn::Result<TokenStream> {
     let spec: TypeComponentSpecs = syn::parse2(stream)?;
 
-    Ok(do_derive_type_component(
-        spec.attributes,
-        spec.ident,
-        spec.bounds,
-    ))
+    do_derive_type_component(spec.attributes, spec.ident, spec.bounds)
 }
 
 pub struct TypeComponentSpecs {
@@ -61,7 +59,7 @@ pub fn do_derive_type_component(
     attributes: Vec<Attribute>,
     ident: Ident,
     bounds: Punctuated<TypeParamBound, Plus>,
-) -> TokenStream {
+) -> syn::Result<TokenStream> {
     let consumer_trait_name = Ident::new(&format!("Has{ident}Type"), ident.span());
 
     let provider_trait_name = Ident::new(&format!("Provide{ident}Type"), ident.span());
@@ -71,7 +69,7 @@ pub fn do_derive_type_component(
     let component_name = Ident::new(&format!("{ident}TypeComponent"), ident.span());
 
     let alias_type: ItemType = parse_quote! {
-        pub type #alias_name <Context> = <Context as #consumer_trait_name>:: #ident;
+        pub type #alias_name <__Context__> = <__Context__ as #consumer_trait_name>:: #ident;
     };
 
     let mut consumer_trait: ItemTrait = parse_quote! {
@@ -83,28 +81,28 @@ pub fn do_derive_type_component(
     consumer_trait.attrs = attributes;
 
     let provider_trait: ItemTrait = parse_quote! {
-        pub trait #provider_trait_name <Context> {
+        pub trait #provider_trait_name <__Context__> {
             type #ident : #bounds;
         }
     };
 
     let consumer_impl: ItemImpl = parse_quote! {
-        impl<Context, Components> #consumer_trait_name for Context
+        impl<__Context__, __Components__> #consumer_trait_name for __Context__
         where
-            Context: HasComponents< Components = Components >,
-            Components: #provider_trait_name <Context>,
-            Components:: #ident : #bounds,
+            __Context__: HasComponents< Components = __Components__ >,
+            __Components__: #provider_trait_name <__Context__>,
+            __Components__:: #ident : #bounds,
         {
-            type #ident = Components:: #ident;
+            type #ident = __Components__:: #ident;
         }
     };
 
     let provider_impl: ItemImpl = parse_quote! {
-        impl<Context, Component, Delegate>
-            #provider_trait_name <Context> for Component
+        impl<__Context__, Component, Delegate>
+            #provider_trait_name <__Context__> for Component
         where
             Component: DelegateComponent< #component_name, Delegate = Delegate >,
-            Delegate: #provider_trait_name <Context>,
+            Delegate: #provider_trait_name <__Context__>,
             Delegate:: #ident : #bounds,
         {
             type #ident = Delegate:: #ident;
@@ -112,18 +110,21 @@ pub fn do_derive_type_component(
     };
 
     let with_provider_impl: ItemImpl = parse_quote! {
-        impl<Context, Provider, #ident> #provider_trait_name <Context>
+        impl<__Context__, Provider, #ident> #provider_trait_name <__Context__>
             for WithProvider<Provider>
         where
-            Provider: ProvideType<Context, #component_name, Type = #ident >,
+            Provider: ProvideType<__Context__, #component_name, Type = #ident >,
             #ident: #bounds,
         {
             type #ident = #ident;
         }
     };
 
+    let is_provider_for_with_provider_impl =
+        derive_is_provider_for(&parse_quote!(#component_name), &with_provider_impl)?;
+
     let use_type_impl: ItemImpl = parse_quote! {
-        impl<Context, #ident> #provider_trait_name <Context>
+        impl<__Context__, #ident> #provider_trait_name <__Context__>
             for UseType<#ident>
         where
             #ident: #bounds,
@@ -132,7 +133,10 @@ pub fn do_derive_type_component(
         }
     };
 
-    quote! {
+    let is_provider_for_use_type_impl =
+        derive_is_provider_for(&parse_quote!(#component_name), &use_type_impl)?;
+
+    Ok(quote! {
         pub struct #component_name;
 
         #consumer_trait
@@ -147,6 +151,10 @@ pub fn do_derive_type_component(
 
         #with_provider_impl
 
+        #is_provider_for_with_provider_impl
+
         #use_type_impl
-    }
+
+        #is_provider_for_use_type_impl
+    })
 }
