@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use proc_macro2::{Group, TokenStream, TokenTree};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::__private::parse_brackets;
 use syn::parse::discouraged::Speculative;
 use syn::parse::{Parse, ParseStream};
@@ -9,7 +9,7 @@ use syn::punctuated::Punctuated;
 use syn::token::{Comma, Or};
 use syn::{braced, Ident, Type};
 
-use crate::delegate_components::ast::ComponentAst;
+use crate::parse::DelegateComponentName;
 
 pub struct ReplaceSpecs {
     pub target_ident: Ident,
@@ -19,9 +19,9 @@ pub struct ReplaceSpecs {
 
 impl Parse for ReplaceSpecs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let raw_replacements: Vec<ComponentAst> = {
+        let raw_replacements: Vec<DelegateComponentName> = {
             let content = parse_brackets(input)?.content;
-            let types = <Punctuated<ComponentAst, Comma>>::parse_terminated(&content)?;
+            let types = <Punctuated<DelegateComponentName, Comma>>::parse_terminated(&content)?;
             types.into_iter().collect()
         };
 
@@ -71,37 +71,6 @@ impl Parse for ReplaceSpecs {
             body,
         })
     }
-}
-
-pub fn handle_for_each_replace(tokens: TokenStream) -> syn::Result<TokenStream> {
-    let specs: ReplaceSpecs = syn::parse2(tokens)?;
-
-    Ok(for_each_replace(
-        &specs.target_ident,
-        &specs.replacements,
-        &specs.body,
-    ))
-}
-
-pub fn handle_replace(tokens: TokenStream) -> syn::Result<TokenStream> {
-    let specs: ReplaceSpecs = syn::parse2(tokens)?;
-
-    let items: Punctuated<TokenStream, Comma> = specs.replacements.into_iter().collect();
-
-    let tokens = quote! { [ #items ] };
-
-    Ok(replace_stream(&specs.target_ident, &tokens, specs.body))
-}
-
-pub fn for_each_replace(
-    target_ident: &Ident,
-    replacements: &[TokenStream],
-    body: &TokenStream,
-) -> TokenStream {
-    replacements
-        .iter()
-        .map(|replacement| replace_stream(target_ident, replacement, body.clone()))
-        .collect()
 }
 
 pub fn replace_stream(

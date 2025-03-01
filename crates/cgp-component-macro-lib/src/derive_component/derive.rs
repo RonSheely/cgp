@@ -3,19 +3,10 @@ use quote::ToTokens;
 use syn::{ItemImpl, ItemStruct, ItemTrait};
 
 use crate::derive_component::component_name::derive_component_name_struct;
-use crate::derive_component::component_spec::ComponentSpec;
 use crate::derive_component::consumer_impl::derive_consumer_impl;
 use crate::derive_component::provider_impl::derive_provider_impl;
 use crate::derive_component::provider_trait::derive_provider_trait;
-
-pub fn derive_component(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let spec: ComponentSpec = syn::parse2(attr)?;
-    let consumer_trait: ItemTrait = syn::parse2(item)?;
-
-    let derived = derive_component_with_ast(&spec, consumer_trait)?;
-
-    Ok(derived.to_token_stream())
-}
+use crate::parse::ComponentSpec;
 
 pub fn derive_component_with_ast(
     spec: &ComponentSpec,
@@ -25,7 +16,7 @@ pub fn derive_component_with_ast(
     let context_type = &spec.context_type;
 
     let component_struct =
-        derive_component_name_struct(&spec.component_name, &spec.component_params);
+        derive_component_name_struct(&spec.component_name, &spec.component_params)?;
 
     let provider_trait = derive_provider_trait(
         &spec.component_name,
@@ -35,7 +26,7 @@ pub fn derive_component_with_ast(
         context_type,
     )?;
 
-    let consumer_impl = derive_consumer_impl(&consumer_trait, provider_name, context_type);
+    let consumer_impl = derive_consumer_impl(&consumer_trait, provider_name, context_type)?;
 
     let provider_impl = derive_provider_impl(
         context_type,
@@ -43,7 +34,7 @@ pub fn derive_component_with_ast(
         &provider_trait,
         &spec.component_name,
         &spec.component_params,
-    );
+    )?;
 
     let derived = DerivedComponent {
         component_struct,

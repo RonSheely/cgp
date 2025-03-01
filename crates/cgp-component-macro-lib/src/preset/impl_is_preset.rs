@@ -1,14 +1,14 @@
 use alloc::vec::Vec;
 
-use syn::{parse_quote, Generics, Ident, ItemImpl, Type};
+use syn::{parse_quote, Ident, ItemImpl, Type};
 
-use crate::delegate_components::ast::{ComponentAst, DelegateEntriesAst};
+use crate::parse::{DelegateComponentEntries, DelegateComponentName, ImplGenerics};
 
 pub fn impl_components_is_preset(
     trait_name: &Ident,
     preset_type: &Type,
-    preset_generics: &Generics,
-    delegate_entries: &DelegateEntriesAst,
+    preset_generics: &ImplGenerics,
+    delegate_entries: &DelegateComponentEntries,
 ) -> Vec<ItemImpl> {
     delegate_entries
         .entries
@@ -24,8 +24,8 @@ pub fn impl_components_is_preset(
 pub fn impl_component_is_preset(
     trait_name: &Ident,
     _preset_type: &Type,
-    _preset_generics: &Generics,
-    component: &ComponentAst,
+    _preset_generics: &ImplGenerics,
+    component: &DelegateComponentName,
 ) -> ItemImpl {
     let component_type = &component.component_type;
 
@@ -33,7 +33,7 @@ pub fn impl_component_is_preset(
     // component name's generic.
     // let generics = merge_generics(preset_generics, &component.component_generics);
 
-    let mut generics = component.component_generics.clone();
+    let mut generics = component.component_generics.generics.clone();
     generics.params.push(parse_quote!(T));
 
     let impl_generics = generics.split_for_impl().0;

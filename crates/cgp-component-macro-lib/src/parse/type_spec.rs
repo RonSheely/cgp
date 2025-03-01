@@ -2,15 +2,14 @@ use syn::parse::{Parse, ParseStream};
 use syn::token::Lt;
 use syn::Ident;
 
-use crate::parse::TypeGenerics;
+use crate::parse::ImplGenerics;
 
-#[derive(Clone)]
-pub struct SimpleType {
+pub struct TypeSpec {
     pub name: Ident,
-    pub generics: Option<TypeGenerics>,
+    pub generics: Option<ImplGenerics>,
 }
 
-impl Parse for SimpleType {
+impl Parse for TypeSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name: Ident = input.parse()?;
         let generics = if input.peek(Lt) {
