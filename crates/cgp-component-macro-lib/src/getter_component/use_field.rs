@@ -4,6 +4,7 @@ use syn::token::Plus;
 use syn::{parse2, Generics, ItemImpl, ItemTrait, TypeParamBound};
 
 use crate::getter_component::getter_field::GetterField;
+use crate::getter_component::{derive_getter_constraint, derive_getter_method, ContextArg};
 use crate::parse::ComponentSpec;
 
 pub fn derive_use_field_impl(
@@ -16,32 +17,13 @@ pub fn derive_use_field_impl(
 
     let mut field_constraints: Punctuated<TypeParamBound, Plus> = Punctuated::default();
 
-    let field_name = &field.field_name;
-    let provider_type = &field.provider_type;
-
     let tag_type = quote! { __Tag__ };
 
-    let method = if field.field_mut.is_none() {
-        field_constraints.push(parse2(quote! {
-            HasField< #tag_type, Value = #provider_type >
-        })?);
+    let method = derive_getter_method(&ContextArg::Ident(context_type.clone()), field, None, None);
 
-        quote! {
-            fn #field_name( context: & #context_type ) -> & #provider_type {
-                context.get_field( ::core::marker::PhantomData )
-            }
-        }
-    } else {
-        field_constraints.push(parse2(quote! {
-            HasFieldMut< #tag_type, Value = #provider_type >
-        })?);
+    let constraint = derive_getter_constraint(field, quote! { #tag_type })?;
 
-        quote! {
-            fn #field_name( context: &mut #context_type ) -> &mut #provider_type {
-                context.get_field_mut( ::core::marker::PhantomData )
-            }
-        }
-    };
+    field_constraints.push(constraint);
 
     let mut provider_generics = provider_trait.generics.clone();
 
