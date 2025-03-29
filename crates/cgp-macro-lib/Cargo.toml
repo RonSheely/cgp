@@ -1,5 +1,5 @@
 [package]
-name         = "cgp-field-macro-lib"
+name         = "cgp-macro-lib"
 version      = "0.4.0"
 edition      = { workspace = true }
 license      = { workspace = true }
@@ -8,11 +8,15 @@ authors      = { workspace = true }
 rust-version = { workspace = true }
 keywords     = { workspace = true }
 description  = """
-    Context-generic programming field macros as a library
+    Context-generic programming core component macros implemented as a library.
 """
 
+[features]
+default = []
+
 [dependencies]
-syn             = { version = "2.0.95", features = [ "full" ] }
+syn             = { version = "2.0.95", features = [ "full", "extra-traits" ] }
 quote           = "1.0.38"
 proc-macro2     = "1.0.92"
 prettyplease    = "0.2.27"
+itertools       = "0.14.0"
