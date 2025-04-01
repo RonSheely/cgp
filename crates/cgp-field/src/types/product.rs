@@ -1,5 +1,9 @@
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
-pub struct Cons<Head, Tail>(pub Head, pub Tail);
+#[allow(non_camel_case_types)]
+pub struct π<Head, Tail>(pub Head, pub Tail);
 
 #[derive(Eq, PartialEq, Clone, Default, Debug)]
-pub struct Nil;
+#[allow(non_camel_case_types)]
+pub struct ε;
+
+pub use {ε as Nil, π as Cons};

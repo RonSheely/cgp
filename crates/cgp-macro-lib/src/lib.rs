@@ -1,4 +1,5 @@
-// #![no_std]
+#![allow(confusable_idents)]
+#![allow(mixed_script_confusables)]
 
 /*!
    This is an internal crate used by the `cgp-macro` crate. We implement the
