@@ -84,6 +84,11 @@ pub fn derive_getter_method(
                 }
             }
         }
+        FieldMode::MRef => {
+            quote! {
+                MRef::Ref( #call_expr )
+            }
+        }
         FieldMode::Str => {
             if spec.field_mut.is_none() {
                 quote! {
@@ -95,9 +100,16 @@ pub fn derive_getter_method(
                 }
             }
         }
-        FieldMode::Clone => quote! {
-            #call_expr .clone()
-        },
+        FieldMode::Clone => {
+            quote! {
+                #call_expr .clone()
+            }
+        }
+        FieldMode::Slice => {
+            quote! {
+                #call_expr .as_ref()
+            }
+        }
     };
 
     let return_type = &spec.return_type;

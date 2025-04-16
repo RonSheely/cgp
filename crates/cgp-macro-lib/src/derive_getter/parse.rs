@@ -206,8 +206,12 @@ fn parse_field_type(return_type: &Type, field_mut: &Option<Mut>) -> syn::Result<
                 let field_type: Type = parse_quote! { String };
 
                 Ok((field_type, FieldMode::Str))
+            } else if let (Type::Slice(slice), None) = (type_ref.elem.as_ref(), field_mut) {
+                let field_type = slice.elem.as_ref().clone();
+
+                Ok((field_type, FieldMode::Slice))
             } else {
-                let field_type: Type = type_ref.elem.as_ref().clone();
+                let field_type = type_ref.elem.as_ref().clone();
 
                 Ok((field_type, FieldMode::Reference))
             }
@@ -218,6 +222,8 @@ fn parse_field_type(return_type: &Type, field_mut: &Option<Mut>) -> syn::Result<
                     parse2(quote! { Option< #field_type > })?,
                     FieldMode::OptionRef,
                 ))
+            } else if let (Some(field_type), None) = (try_parse_mref(type_path), field_mut) {
+                Ok((field_type.clone(), FieldMode::MRef))
             } else {
                 Ok((return_type.clone(), FieldMode::Clone))
             }
@@ -263,8 +269,26 @@ fn try_parse_option_ref(type_path: &TypePath) -> Option<&Type> {
 
     if segment.ident == "Option" {
         if let PathArguments::AngleBracketed(args) = &segment.arguments {
-            if let Some(GenericArgument::Type(Type::Reference(type_ref))) = args.args.first() {
+            let [arg] = Vec::from_iter(args.args.iter()).try_into().ok()?;
+
+            if let GenericArgument::Type(Type::Reference(type_ref)) = arg {
                 return Some(type_ref.elem.as_ref());
+            }
+        }
+    }
+
+    None
+}
+
+fn try_parse_mref(type_path: &TypePath) -> Option<&Type> {
+    let segment = parse_single_segment_type_path(type_path).ok()?;
+
+    if segment.ident == "MRef" {
+        if let PathArguments::AngleBracketed(args) = &segment.arguments {
+            let [arg1, arg2] = Vec::from_iter(args.args.iter()).try_into().ok()?;
+
+            if let (GenericArgument::Lifetime(_), GenericArgument::Type(ty)) = (arg1, arg2) {
+                return Some(ty);
             }
         }
     }
