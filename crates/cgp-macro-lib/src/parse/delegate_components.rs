@@ -2,29 +2,59 @@ use core::iter;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens, TokenStreamExt};
+use syn::parse::discouraged::Speculative;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::{Bracket, Colon, Comma, Lt};
-use syn::{braced, bracketed, Token, Type};
+use syn::token::{Bracket, Colon, Comma, Gt, Lt};
+use syn::{braced, bracketed, parse_quote, Error, Generics, Ident, Token, Type};
 
-use crate::parse::ImplGenerics;
+use crate::parse::{ImplGenerics, TypeGenerics};
 
 pub struct DelegateComponents {
+    pub new_struct: bool,
     pub target_type: Type,
     pub target_generics: ImplGenerics,
-    pub delegate_entries: Punctuated<DelegateComponentEntry<Type>, Comma>,
+    pub entries: Punctuated<DelegateEntry<Type>, Comma>,
 }
 
 #[derive(Clone)]
-pub struct DelegateComponentEntry<T> {
-    pub components: Punctuated<DelegateComponentName<T>, Comma>,
-    pub source: Type,
+pub struct DelegateEntry<T> {
+    pub keys: Punctuated<DelegateKey<T>, Comma>,
+    pub value: DelegateValue,
 }
 
 #[derive(Clone)]
-pub struct DelegateComponentName<T> {
-    pub component_type: T,
-    pub component_generics: ImplGenerics,
+pub struct DelegateKey<T> {
+    pub ty: T,
+    pub generics: ImplGenerics,
+}
+
+#[derive(Clone)]
+pub enum DelegateValue {
+    Type(Type),
+    New(DelegateNewValue),
+}
+
+#[derive(Clone)]
+pub struct DelegateNewValue {
+    pub wrapper_ident: Ident,
+    pub struct_ident: Ident,
+    pub struct_generics: Generics,
+    pub entries: Punctuated<DelegateEntry<Type>, Comma>,
+}
+
+impl DelegateValue {
+    pub fn as_type(&self) -> Type {
+        match self {
+            Self::Type(ty) => ty.clone(),
+            Self::New(value) => {
+                let wrapper_ident = &value.wrapper_ident;
+                let struct_ident = &value.struct_ident;
+                let (_, struct_generics, _) = value.struct_generics.split_for_impl();
+                parse_quote!( #wrapper_ident < #struct_ident #struct_generics > )
+            }
+        }
+    }
 }
 
 impl Parse for DelegateComponents {
@@ -33,6 +63,18 @@ impl Parse for DelegateComponents {
             input.parse()?
         } else {
             Default::default()
+        };
+
+        let new_struct = {
+            let fork = input.fork();
+            let new_ident: Option<Ident> = fork.parse().ok();
+            match new_ident {
+                Some(new_ident) if new_ident == "new" => {
+                    input.advance_to(&fork);
+                    true
+                }
+                _ => false,
+            }
         };
 
         let target_type: Type = input.parse()?;
@@ -44,14 +86,15 @@ impl Parse for DelegateComponents {
         };
 
         Ok(Self {
+            new_struct,
             target_type,
             target_generics,
-            delegate_entries,
+            entries: delegate_entries,
         })
     }
 }
 
-impl<Type> Parse for DelegateComponentEntry<Type>
+impl<Type> Parse for DelegateEntry<Type>
 where
     Type: Parse,
 {
@@ -59,9 +102,9 @@ where
         let components = if input.peek(Bracket) {
             let components_body;
             bracketed!(components_body in input);
-            components_body.parse_terminated(DelegateComponentName::parse, Token![,])?
+            components_body.parse_terminated(DelegateKey::parse, Token![,])?
         } else {
-            let component: DelegateComponentName<Type> = input.parse()?;
+            let component: DelegateKey<Type> = input.parse()?;
             Punctuated::from_iter(iter::once(component))
         };
 
@@ -69,11 +112,14 @@ where
 
         let source = input.parse()?;
 
-        Ok(Self { components, source })
+        Ok(Self {
+            keys: components,
+            value: source,
+        })
     }
 }
 
-impl<Type> Parse for DelegateComponentName<Type>
+impl<Type> Parse for DelegateKey<Type>
 where
     Type: Parse,
 {
@@ -87,19 +133,67 @@ where
         let component_type: Type = input.parse()?;
 
         Ok(Self {
-            component_type,
-            component_generics,
+            ty: component_type,
+            generics: component_generics,
         })
     }
 }
 
-impl<Type> ToTokens for DelegateComponentEntry<Type>
+impl Parse for DelegateValue {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let fork = input.fork();
+
+        match fork.parse::<DelegateNewValue>() {
+            Ok(value) => {
+                input.advance_to(&fork);
+                Ok(Self::New(value))
+            }
+            _ => Ok(Self::Type(input.parse()?)),
+        }
+    }
+}
+
+impl Parse for DelegateNewValue {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let wrapper_ident = input.parse()?;
+
+        let _: Lt = input.parse()?;
+
+        let new_ident: Ident = input.parse()?;
+
+        if new_ident != "new" {
+            return Err(Error::new(new_ident.span(), "expect `new` keyword"));
+        }
+
+        let struct_ident = input.parse()?;
+
+        let struct_generics: TypeGenerics = input.parse()?;
+
+        let entries = {
+            let content;
+            braced!(content in input);
+
+            Punctuated::parse_terminated(&content)?
+        };
+
+        let _: Gt = input.parse()?;
+
+        Ok(Self {
+            wrapper_ident,
+            struct_ident,
+            struct_generics: struct_generics.generics,
+            entries,
+        })
+    }
+}
+
+impl<Type> ToTokens for DelegateEntry<Type>
 where
     Type: ToTokens,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let components = &self.components;
-        let source = &self.source;
+        let components = &self.keys;
+        let source = &self.value;
 
         let count = components.len();
 
@@ -118,12 +212,40 @@ where
     }
 }
 
-impl<Type> ToTokens for DelegateComponentName<Type>
+impl<Type> ToTokens for DelegateKey<Type>
 where
     Type: ToTokens,
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(self.component_generics.to_token_stream());
-        tokens.extend(self.component_type.to_token_stream());
+        tokens.extend(self.generics.to_token_stream());
+        tokens.extend(self.ty.to_token_stream());
+    }
+}
+
+impl ToTokens for DelegateValue {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::Type(value) => value.to_tokens(tokens),
+            Self::New(value) => value.to_tokens(tokens),
+        }
+    }
+}
+
+impl ToTokens for DelegateNewValue {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let Self {
+            wrapper_ident,
+            struct_ident,
+            struct_generics,
+            entries,
+        } = self;
+
+        tokens.extend(quote! {
+            #wrapper_ident <
+                new #struct_ident #struct_generics {
+                    #entries
+                }
+            >
+        });
     }
 }

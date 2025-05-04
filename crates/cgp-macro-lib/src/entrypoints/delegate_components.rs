@@ -1,19 +1,33 @@
 use proc_macro2::TokenStream;
-use quote::ToTokens;
+use quote::{quote, ToTokens};
+use syn::parse2;
 
-use crate::delegate_components::impl_delegate_components;
-use crate::parse::DelegateComponents;
+use crate::delegate_components::{define_struct, impl_delegate_components};
+use crate::parse::{DelegateComponents, SimpleType, TypeGenerics};
 
 pub fn delegate_components(body: TokenStream) -> syn::Result<TokenStream> {
-    let ast: DelegateComponents = syn::parse2(body)?;
+    let spec: DelegateComponents = parse2(body)?;
+    let mut target_generics = spec.target_generics;
 
-    let impl_items = impl_delegate_components(
-        &ast.target_type,
-        &ast.target_generics,
-        &ast.delegate_entries,
-    )?;
+    let component_struct = if spec.new_struct {
+        let target_type: SimpleType<TypeGenerics> = parse2(spec.target_type.to_token_stream())?;
 
-    let mut output = TokenStream::new();
+        let type_generics = target_type.generics.unwrap_or_default().generics;
+
+        let component_struct = define_struct(&target_type.name, &type_generics)?;
+
+        target_generics.generics.params.extend(type_generics.params);
+
+        Some(component_struct)
+    } else {
+        None
+    };
+
+    let impl_items = impl_delegate_components(&spec.target_type, &target_generics, &spec.entries)?;
+
+    let mut output = quote! {
+        #component_struct
+    };
 
     for impl_item in impl_items {
         output.extend(impl_item.to_token_stream());
