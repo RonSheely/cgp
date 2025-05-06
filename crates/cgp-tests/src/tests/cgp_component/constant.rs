@@ -1,21 +1,19 @@
 use cgp::prelude::*;
 
 pub fn test_component_with_const() {
-    #[cgp_component {
-        provider: ConstantGetter
-    }]
+    #[cgp_component(ConstantGetter)]
     pub trait HasConstant {
         const CONSTANT: u64;
     }
 
     pub struct UseConstant<const CONSTANT: u64>;
 
-    #[cgp_provider(ConstantGetterComponent)]
+    #[cgp_provider]
     impl<Context, const CONSTANT: u64> ConstantGetter<Context> for UseConstant<CONSTANT> {
         const CONSTANT: u64 = CONSTANT;
     }
 
-    #[cgp_context(MyContextComponents)]
+    #[cgp_context]
     pub struct MyContext;
 
     delegate_components! {
@@ -39,16 +37,14 @@ pub fn test_component_with_generic_const() {
         type Unit;
     }
 
-    #[cgp_component {
-        provider: ConstantGetter
-    }]
+    #[cgp_component(ConstantGetter)]
     pub trait HasConstant: HasUnitType {
         const CONSTANT: Self::Unit;
     }
 
     pub struct UseConstant<const CONSTANT: u64>;
 
-    #[cgp_provider(ConstantGetterComponent)]
+    #[cgp_provider]
     impl<Context, const CONSTANT: u64> ConstantGetter<Context> for UseConstant<CONSTANT>
     where
         Context: HasUnitType<Unit = u64>,
@@ -56,7 +52,7 @@ pub fn test_component_with_generic_const() {
         const CONSTANT: u64 = CONSTANT;
     }
 
-    #[cgp_context(MyContextComponents)]
+    #[cgp_context]
     pub struct MyContext;
 
     delegate_components! {
