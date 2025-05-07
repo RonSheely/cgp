@@ -29,11 +29,11 @@ fn test_basic_derive_context() {
 
         pub struct FooComponents;
 
-        impl<Bar: BarConstraint> HasProvider for FooContext<Bar>
+        impl<Bar: BarConstraint> HasCgpProvider for FooContext<Bar>
         where
             Bar: BazConstraint,
         {
-            type Provider = FooComponents;
+            type CgpProvider = FooComponents;
         }
     };
 
@@ -67,11 +67,11 @@ fn test_derive_context_with_preset() {
 
         pub struct FooComponents;
 
-        impl<Bar: BarConstraint> HasProvider for FooContext<Bar>
+        impl<Bar: BarConstraint> HasCgpProvider for FooContext<Bar>
         where
             Bar: BazConstraint,
         {
-            type Provider = FooComponents;
+            type CgpProvider = FooComponents;
         }
 
         impl<__Name__> DelegateComponent<__Name__> for FooComponents
