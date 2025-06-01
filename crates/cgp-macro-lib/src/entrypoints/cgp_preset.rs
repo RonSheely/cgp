@@ -42,6 +42,13 @@ pub fn define_preset(body: TokenStream) -> syn::Result<TokenStream> {
             parent_ident.span(),
         );
 
+        let wrapper_attribute = match ast.provider_wrapper {
+            Some(wrapper) => quote! {
+                #[wrap_provider( #wrapper )]
+            },
+            None => TokenStream::new(),
+        };
+
         let preset_type_spec = &ast.preset;
 
         let mut overrides: Punctuated<&Ident, Comma> = Punctuated::default();
@@ -71,6 +78,7 @@ pub fn define_preset(body: TokenStream) -> syn::Result<TokenStream> {
                 #filter
                 | #parent_components_ident | {
                     cgp_preset! {
+                        #wrapper_attribute
                         #preset_type_spec: #parent_presets {
                             #parent_components_ident: #parent_ident :: Provider #parent_generics,
                             #preset_entries
@@ -83,13 +91,13 @@ pub fn define_preset(body: TokenStream) -> syn::Result<TokenStream> {
         return Ok(output);
     }
 
+    let provider_struct_name = Ident::new("Components", Span::call_site());
+
     let preset_module_name = &ast.preset.name;
 
     let preset_generic_args = &ast.preset.generics;
 
     let preset_generics: ImplGenerics = syn::parse2(quote!( #preset_generic_args ))?;
-
-    let provider_struct_name = Ident::new("Provider", Span::call_site());
 
     let provider_type = {
         let type_generics = preset_generics.as_type_generics();
@@ -126,8 +134,25 @@ pub fn define_preset(body: TokenStream) -> syn::Result<TokenStream> {
 
     let provider_struct = define_struct(&provider_struct_name, &preset_generics.generics)?;
 
+    let export_provider = match ast.provider_wrapper {
+        Some(wrapper) => {
+            let (impl_generics, type_generics, _) = preset_generics.generics.split_for_impl();
+
+            quote! {
+                pub type Provider #impl_generics = #wrapper < #provider_struct_name #type_generics >;
+            }
+        }
+        None => {
+            quote! {
+                pub use #provider_struct_name as Provider;
+            }
+        }
+    };
+
     let mut mod_output = quote! {
         #provider_struct
+
+        #export_provider
 
         #preset_trait
     };
