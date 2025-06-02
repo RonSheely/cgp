@@ -1,28 +1,37 @@
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::{Colon, Comma};
-use syn::{Ident, Type};
+use syn::token::{Bracket, Colon, Comma};
+use syn::{bracketed, Ident, Type};
 
 pub struct Entry {
     pub key: Ident,
-    pub value: Type,
+    pub value: TokenStream,
 }
 
 impl Parse for Entry {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let key = input.parse()?;
         let _colon: Colon = input.parse()?;
-        let value = input.parse()?;
+        let value = if input.peek(Bracket) {
+            let body;
+            bracketed!(body in input);
+            let inner: TokenStream = body.parse()?;
+            quote! { [ #inner ] }
+        } else {
+            input.parse::<Type>()?.to_token_stream()
+        };
 
         Ok(Entry { key, value })
     }
 }
 
 pub struct Entries {
-    pub entries: BTreeMap<String, Type>,
+    pub entries: BTreeMap<String, TokenStream>,
 }
 
 impl Parse for Entries {
