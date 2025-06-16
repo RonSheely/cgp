@@ -5,7 +5,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::discouraged::Speculative;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::{Bracket, Colon, Comma, Gt, Lt};
+use syn::token::{Bracket, Colon, Comma, Gt, Lt, RArrow};
 use syn::{braced, bracketed, parse_quote, Error, Generics, Ident, Token, Type};
 
 use crate::parse::{ImplGenerics, TypeGenerics};
@@ -20,6 +20,7 @@ pub struct DelegateComponents {
 #[derive(Clone)]
 pub struct DelegateEntry<T> {
     pub keys: Punctuated<DelegateKey<T>, Comma>,
+    pub mode: DelegateMode,
     pub value: DelegateValue,
 }
 
@@ -35,6 +36,13 @@ pub enum DelegateValue {
     New(DelegateNewValue),
 }
 
+#[allow(dead_code)]
+#[derive(Clone)]
+pub enum DelegateMode {
+    Provider(Colon),
+    Direct(RArrow),
+}
+
 #[derive(Clone)]
 pub struct DelegateNewValue {
     pub wrapper_ident: Ident,
@@ -43,6 +51,11 @@ pub struct DelegateNewValue {
     pub entries: Punctuated<DelegateEntry<Type>, Comma>,
 }
 
+impl DelegateMode {
+    pub fn is_direct(&self) -> bool {
+        matches!(self, Self::Direct(_))
+    }
+}
 impl DelegateValue {
     pub fn as_type(&self) -> Type {
         match self {
@@ -108,12 +121,13 @@ where
             Punctuated::from_iter(iter::once(component))
         };
 
-        let _: Colon = input.parse()?;
+        let mode = input.parse()?;
 
         let source = input.parse()?;
 
         Ok(Self {
             keys: components,
+            mode,
             value: source,
         })
     }
@@ -136,6 +150,16 @@ where
             ty: component_type,
             generics: component_generics,
         })
+    }
+}
+
+impl Parse for DelegateMode {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(RArrow) {
+            Ok(Self::Direct(input.parse()?))
+        } else {
+            Ok(Self::Provider(input.parse()?))
+        }
     }
 }
 
@@ -193,6 +217,7 @@ where
 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let components = &self.keys;
+        let mode = &self.mode;
         let source = &self.value;
 
         let count = components.len();
@@ -200,13 +225,13 @@ where
         #[allow(clippy::comparison_chain)]
         if count == 1 {
             tokens.append_all(quote! {
-                #components : #source
+                #components #mode #source
             });
         } else if count > 1 {
             tokens.append_all(quote! {
                 [
                     #components
-                ] : #source
+                ] #mode #source
             });
         }
     }
@@ -219,6 +244,15 @@ where
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.extend(self.generics.to_token_stream());
         tokens.extend(self.ty.to_token_stream());
+    }
+}
+
+impl ToTokens for DelegateMode {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::Provider(colon) => colon.to_tokens(tokens),
+            Self::Direct(arrow) => arrow.to_tokens(tokens),
+        }
     }
 }
 

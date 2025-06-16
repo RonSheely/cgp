@@ -9,15 +9,15 @@ mod preset {
         NestedPresetD: NestedPresetB + NestedPresetC {
             override FooGetterComponent:
                 UseField<symbol!("fool")>,
-            override BarTypeProviderComponent:
+            override BarTypeProviderComponent ->
                 NestedPresetC::Provider,
         }
     }
 
     pub trait CheckDelegatesForNestedPresetD:
-        DelegateComponent<FooTypeProviderComponent, Delegate = NestedPresetB::Provider>
-        + DelegateComponent<BarTypeProviderComponent, Delegate = NestedPresetC::Provider>
-        + DelegateComponent<BarGetterComponent, Delegate = NestedPresetC::Provider>
+        DelegateComponent<FooTypeProviderComponent, Delegate = UseType<()>>
+        + DelegateComponent<BarTypeProviderComponent, Delegate = UseType<()>>
+        + DelegateComponent<BarGetterComponent, Delegate = UseField<symbol!("bar")>>
         + DelegateComponent<FooGetterComponent, Delegate = UseField<symbol!("fool")>>
     {
     }
