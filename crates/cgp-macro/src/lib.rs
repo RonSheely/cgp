@@ -937,6 +937,27 @@ pub fn product(body: TokenStream) -> TokenStream {
     cgp_macro_lib::make_product_expr(body.into()).into()
 }
 
+#[proc_macro_attribute]
+pub fn cgp_producer(attr: TokenStream, body: TokenStream) -> TokenStream {
+    cgp_macro_lib::cgp_producer(attr.into(), body.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_attribute]
+pub fn cgp_computer(attr: TokenStream, body: TokenStream) -> TokenStream {
+    cgp_macro_lib::cgp_computer(attr.into(), body.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_attribute]
+pub fn cgp_handler(attr: TokenStream, body: TokenStream) -> TokenStream {
+    cgp_macro_lib::cgp_handler(attr.into(), body.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 #[proc_macro_derive(HasField)]
 pub fn derive_fields(item: TokenStream) -> TokenStream {
     cgp_macro_lib::derive_fields(item.into()).into()
@@ -945,6 +966,27 @@ pub fn derive_fields(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(HasFields)]
 pub fn derive_has_fields(item: TokenStream) -> TokenStream {
     cgp_macro_lib::derive_has_fields(item.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_derive(BuildField)]
+pub fn derive_builder(item: TokenStream) -> TokenStream {
+    cgp_macro_lib::derive_build_field(item.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_derive(ExtractField)]
+pub fn derive_extractor(item: TokenStream) -> TokenStream {
+    cgp_macro_lib::derive_extract_field(item.into())
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+#[proc_macro_derive(FromVariant)]
+pub fn derive_from_variant(item: TokenStream) -> TokenStream {
+    cgp_macro_lib::derive_from_variant(item.into())
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

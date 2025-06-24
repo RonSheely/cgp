@@ -1,9 +1,11 @@
 pub mod r#async;
 pub mod blanket_trait;
+pub mod builder;
 pub mod cgp_component;
 pub mod check_components;
 pub mod delegate_and_check_components;
 pub mod delegate_components;
+pub mod extractor;
 pub mod getter;
 pub mod handler;
 pub mod has_field;

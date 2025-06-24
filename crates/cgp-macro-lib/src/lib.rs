@@ -13,8 +13,10 @@ extern crate alloc;
 pub(crate) mod blanket_trait;
 pub(crate) mod check_components;
 pub(crate) mod delegate_components;
+pub(crate) mod derive_builder;
 pub(crate) mod derive_component;
 pub(crate) mod derive_context;
+pub(crate) mod derive_extractor;
 pub(crate) mod derive_getter;
 pub(crate) mod derive_has_fields;
 pub(crate) mod derive_provider;
@@ -26,6 +28,7 @@ pub(crate) mod preset;
 pub(crate) mod product;
 pub(crate) mod symbol;
 pub(crate) mod type_component;
+pub(crate) mod utils;
 
 pub use field::derive_fields;
 pub use product::{make_product_expr, make_product_type, make_sum_type};
