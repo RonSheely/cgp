@@ -5,160 +5,54 @@ use cgp_handler::{
     Computer, ComputerComponent, Handler, HandlerComponent, TryComputer, TryComputerComponent,
 };
 
-pub struct DispatchHandlers<Handlers>(pub PhantomData<Handlers>);
-pub struct DispatchHandlersRef<Handlers>(pub PhantomData<Handlers>);
+pub struct DispatchMatchers<Handlers>(pub PhantomData<Handlers>);
 
 #[cgp_provider]
-impl<Context, Code, Input, Output, Handlers> Computer<Context, Code, Input>
-    for DispatchHandlers<Handlers>
+impl<Context, Code, Input, Handlers, Output, Remainder> Computer<Context, Code, Input>
+    for DispatchMatchers<Handlers>
 where
-    Input: HasExtractor,
-    Handlers: DispatchComputer<Context, Code, Input::Extractor, Output = Output>,
-    Handlers::Remainder: FinalizeExtract,
+    Handlers: DispatchComputer<Context, Code, Input, Output = Output, Remainder = Remainder>,
 {
-    type Output = Output;
+    type Output = Result<Output, Remainder>;
 
-    fn compute(_context: &Context, code: PhantomData<Code>, input: Input) -> Output {
-        let res = Handlers::compute(_context, code, input.to_extractor());
-
-        match res {
-            Ok(output) => output,
-            Err(remainder) => remainder.finalize_extract(),
-        }
+    fn compute(_context: &Context, code: PhantomData<Code>, input: Input) -> Self::Output {
+        Handlers::compute(_context, code, input)
     }
 }
 
 #[cgp_provider]
-impl<Context, Code, Input, Output, Handlers> TryComputer<Context, Code, Input>
-    for DispatchHandlers<Handlers>
+impl<Context, Code, Input, Handlers, Output, Remainder> TryComputer<Context, Code, Input>
+    for DispatchMatchers<Handlers>
 where
     Context: HasErrorType,
-    Input: HasExtractor,
-    Handlers: TryDispatchComputer<Context, Code, Input::Extractor, Output = Output>,
-    Handlers::Remainder: FinalizeExtract,
+    Handlers: TryDispatchComputer<Context, Code, Input, Output = Output, Remainder = Remainder>,
 {
-    type Output = Output;
+    type Output = Result<Output, Remainder>;
 
     fn try_compute(
         _context: &Context,
         code: PhantomData<Code>,
         input: Input,
-    ) -> Result<Output, Context::Error> {
-        let res = Handlers::try_compute(_context, code, input.to_extractor())?;
-
-        match res {
-            Ok(output) => Ok(output),
-            Err(remainder) => remainder.finalize_extract(),
-        }
+    ) -> Result<Self::Output, Context::Error> {
+        Handlers::try_compute(_context, code, input)
     }
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input: Send, Output: Send, Handlers> Handler<Context, Code, Input>
-    for DispatchHandlers<Handlers>
+impl<Context, Code: Send, Input: Send, Handlers, Output: Send, Remainder: Send>
+    Handler<Context, Code, Input> for DispatchMatchers<Handlers>
 where
     Context: HasAsyncErrorType,
-    Input: HasExtractor,
-    Handlers: DispatchHandler<Context, Code, Input::Extractor, Output = Output>,
-    Handlers::Remainder: FinalizeExtract,
+    Handlers: DispatchHandler<Context, Code, Input, Output = Output, Remainder = Remainder>,
 {
-    type Output = Output;
+    type Output = Result<Output, Remainder>;
 
     async fn handle(
         _context: &Context,
         code: PhantomData<Code>,
         input: Input,
-    ) -> Result<Output, Context::Error> {
-        let res = Handlers::handle(_context, code, input.to_extractor()).await?;
-
-        match res {
-            Ok(output) => Ok(output),
-            Err(remainder) => Err(remainder.finalize_extract()),
-        }
-    }
-}
-
-#[cgp_provider]
-impl<Context, Code, Input, Output, Handlers> TryComputer<Context, Code, &Input>
-    for DispatchHandlersRef<Handlers>
-where
-    Context: HasErrorType,
-    Input: HasExtractorRef,
-    Handlers: for<'b> TryDispatchComputer<
-        Context,
-        Code,
-        Input::ExtractorRef<'b>,
-        Output = Output,
-        Remainder: FinalizeExtract,
-    >,
-{
-    type Output = Output;
-
-    fn try_compute(
-        _context: &Context,
-        code: PhantomData<Code>,
-        input: &Input,
-    ) -> Result<Output, Context::Error> {
-        let res = Handlers::try_compute(_context, code, input.extractor_ref())?;
-
-        match res {
-            Ok(output) => Ok(output),
-            Err(remainder) => remainder.finalize_extract(),
-        }
-    }
-}
-#[cgp_provider]
-impl<Context, Code, Input, Output, Handlers> Computer<Context, Code, &Input>
-    for DispatchHandlersRef<Handlers>
-where
-    Input: HasExtractorRef,
-    Handlers: for<'b> DispatchComputer<
-        Context,
-        Code,
-        Input::ExtractorRef<'b>,
-        Output = Output,
-        Remainder: FinalizeExtract,
-    >,
-{
-    type Output = Output;
-
-    fn compute(_context: &Context, code: PhantomData<Code>, input: &Input) -> Output {
-        let res = Handlers::compute(_context, code, input.extractor_ref());
-
-        match res {
-            Ok(output) => output,
-            Err(remainder) => remainder.finalize_extract(),
-        }
-    }
-}
-
-#[cgp_provider]
-impl<Context, Code: Send, Input, Output: Send, Handlers> Handler<Context, Code, &Input>
-    for DispatchHandlersRef<Handlers>
-where
-    Context: HasAsyncErrorType,
-    Input: HasExtractorRef + Send + Sync,
-    Handlers: for<'b> DispatchHandler<
-        Context,
-        Code,
-        Input::ExtractorRef<'b>,
-        Output = Output,
-        Remainder: FinalizeExtract,
-    >,
-{
-    type Output = Output;
-
-    async fn handle(
-        _context: &Context,
-        code: PhantomData<Code>,
-        input: &Input,
-    ) -> Result<Output, Context::Error> {
-        let res = Handlers::handle(_context, code, input.extractor_ref()).await?;
-
-        match res {
-            Ok(output) => Ok(output),
-            Err(remainder) => Err(remainder.finalize_extract()),
-        }
+    ) -> Result<Self::Output, Context::Error> {
+        Handlers::handle(_context, code, input).await
     }
 }
 
@@ -300,11 +194,11 @@ where
 #[async_trait]
 trait DispatchHandler<Context, Code, Input>
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
 {
-    type Output: Send;
+    type Output;
 
-    type Remainder: Send;
+    type Remainder;
 
     async fn handle(
         context: &Context,
