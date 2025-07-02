@@ -1,19 +1,23 @@
 use cgp_core::prelude::*;
 use cgp_handler::{
-    Computer, ComputerComponent, HandleFieldValue, Handler, HandlerComponent, TryComputer,
-    TryComputerComponent,
+    Computer, ComputerRef, ComputerRefComponent, HandleFieldValue, Handler, HandlerRef,
+    HandlerRefComponent, PromoteRef, TryComputer, TryComputerRef, TryComputerRefComponent,
 };
 
 use crate::providers::matchers::to_field_handlers::ToFieldHandlers;
 use crate::MatchWithHandlersRef;
 
-pub struct MatchWithFieldHandlersRef<Provider = UseContext>(pub PhantomData<Provider>);
+pub type MatchWithFieldHandlersRef<Provider = UseContext> =
+    MatchWithFieldHandlersRefImpl<PromoteRef<Provider>>;
 
-pub type MatchWithValueHandlersRef = MatchWithFieldHandlersRef<HandleFieldValue<UseContext>>;
+pub type MatchWithValueHandlersRef<Provider = UseContext> =
+    MatchWithFieldHandlersRefImpl<HandleFieldValue<PromoteRef<Provider>>>;
+
+pub struct MatchWithFieldHandlersRefImpl<Provider = UseContext>(pub PhantomData<Provider>);
 
 #[cgp_provider]
-impl<Context, Code, Input, Output, Provider> Computer<Context, Code, &Input>
-    for MatchWithFieldHandlersRef<Provider>
+impl<Context, Code, Input, Output, Provider> ComputerRef<Context, Code, Input>
+    for MatchWithFieldHandlersRefImpl<Provider>
 where
     Input: HasFieldsRef,
     for<'b> Input::FieldsRef<'b>: ToFieldHandlers<Provider>,
@@ -22,14 +26,14 @@ where
 {
     type Output = Output;
 
-    fn compute(context: &Context, code: PhantomData<Code>, input: &Input) -> Output {
+    fn compute_ref(context: &Context, code: PhantomData<Code>, input: &Input) -> Output {
         MatchWithHandlersRef::compute(context, code, input)
     }
 }
 
 #[cgp_provider]
-impl<Context, Code, Input, Output, Provider> TryComputer<Context, Code, &Input>
-    for MatchWithFieldHandlersRef<Provider>
+impl<Context, Code, Input, Output, Provider> TryComputerRef<Context, Code, Input>
+    for MatchWithFieldHandlersRefImpl<Provider>
 where
     Context: HasErrorType,
     Input: HasFieldsRef,
@@ -39,7 +43,7 @@ where
 {
     type Output = Output;
 
-    fn try_compute(
+    fn try_compute_ref(
         context: &Context,
         code: PhantomData<Code>,
         input: &Input,
@@ -49,8 +53,8 @@ where
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input, Output: Send, Provider> Handler<Context, Code, &Input>
-    for MatchWithFieldHandlersRef<Provider>
+impl<Context, Code: Send, Input, Output: Send, Provider> HandlerRef<Context, Code, Input>
+    for MatchWithFieldHandlersRefImpl<Provider>
 where
     Context: HasAsyncErrorType,
     Input: Send + Sync + HasFieldsRef,
@@ -60,7 +64,7 @@ where
 {
     type Output = Output;
 
-    async fn handle(
+    async fn handle_ref(
         context: &Context,
         code: PhantomData<Code>,
         input: &Input,
