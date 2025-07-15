@@ -56,6 +56,7 @@ version = "0.4.2"
 dependencies = [
  "cgp-core",
  "cgp-handler",
+ "cgp-monad",
 ]
 
 [[package]]
@@ -107,6 +108,7 @@ dependencies = [
  "cgp-error-extra",
  "cgp-handler",
  "cgp-inner",
+ "cgp-monad",
  "cgp-run",
  "cgp-runtime",
 ]
@@ -152,6 +154,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "cgp-monad"
+version = "0.4.2"
+dependencies = [
+ "cgp-core",
+ "cgp-handler",
 ]
 
 [[package]]
