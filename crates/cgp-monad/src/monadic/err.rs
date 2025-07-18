@@ -1,78 +1,108 @@
 use cgp_core::prelude::*;
-use cgp_handler::{
-    Computer, ComputerComponent, Handler, HandlerComponent, TryComputer, TryComputerComponent,
-};
+use cgp_handler::{Computer, ComputerComponent, Handler, HandlerComponent};
 
-use crate::traits::Compose;
+use crate::monadic::ident::IdentMonadic;
+use crate::traits::{ContainsValue, LiftValue, MonadicBind, MonadicTrans};
 
 pub struct ErrMonadic;
 
-impl<ProviderA, ProviderB> Compose<ProviderA, ProviderB> for ErrMonadic {
-    type Provider = ComposeErr<ProviderA, ProviderB>;
+pub struct ErrMonadicTrans<M>(pub PhantomData<M>);
+
+impl<M> MonadicTrans<M> for ErrMonadic {
+    type M = ErrMonadicTrans<M>;
 }
 
-pub struct ComposeErr<ProviderA, ProviderB>(pub PhantomData<(ProviderA, ProviderB)>);
+impl<M1, M2, M3> MonadicTrans<M2> for ErrMonadicTrans<M1>
+where
+    M1: MonadicTrans<M2, M = M3>,
+{
+    type M = ErrMonadicTrans<M3>;
+}
+
+impl<M, Provider> MonadicBind<Provider> for ErrMonadicTrans<M>
+where
+    M: MonadicBind<BindErr<M, Provider>>,
+{
+    type Provider = M::Provider;
+}
+
+impl<Provider> MonadicBind<Provider> for ErrMonadic {
+    type Provider = BindErr<IdentMonadic, Provider>;
+}
+pub struct BindErr<M, Cont>(pub PhantomData<(M, Cont)>);
+
+impl<T, E> ContainsValue<Result<T, E>> for ErrMonadic {
+    type Value = T;
+}
+
+impl<T, E> LiftValue<T, Result<T, E>> for ErrMonadic {
+    type Output = Result<T, E>;
+
+    fn lift_value(value: T) -> Self::Output {
+        Ok(value)
+    }
+
+    fn lift_output(output: Result<T, E>) -> Self::Output {
+        output
+    }
+}
+
+impl<T, E, V, M> ContainsValue<V> for ErrMonadicTrans<M>
+where
+    M: ContainsValue<V, Value = Result<T, E>>,
+{
+    type Value = T;
+}
+
+impl<T, E, V, M> LiftValue<T, V> for ErrMonadicTrans<M>
+where
+    M: ContainsValue<V, Value = Result<T, E>> + LiftValue<Result<T, E>, V>,
+{
+    type Output = M::Output;
+
+    fn lift_value(value: T) -> Self::Output {
+        M::lift_value(Ok(value))
+    }
+
+    fn lift_output(output: V) -> Self::Output {
+        M::lift_output(output)
+    }
+}
 
 #[cgp_provider]
-impl<Context, Code, Input, ProviderA, ProviderB, T1, T2, E> Computer<Context, Code, Input>
-    for ComposeErr<ProviderA, ProviderB>
+impl<Context, Code, T1, T2, E, M, Cont> Computer<Context, Code, Result<T1, E>> for BindErr<M, Cont>
 where
-    ProviderA: Computer<Context, Code, Input, Output = Result<T1, E>>,
-    ProviderB: Computer<Context, Code, T1, Output = Result<T2, E>>,
+    Cont: Computer<Context, Code, T1>,
+    M: ContainsValue<Cont::Output, Value = Result<T2, E>> + LiftValue<Result<T2, E>, Cont::Output>,
 {
-    type Output = Result<T2, E>;
+    type Output = M::Output;
 
-    fn compute(context: &Context, code: PhantomData<Code>, input: Input) -> Self::Output {
-        let res = ProviderA::compute(context, code, input);
-        match res {
-            Ok(value) => ProviderB::compute(context, code, value),
-            Err(err) => Err(err),
+    fn compute(context: &Context, code: PhantomData<Code>, input: Result<T1, E>) -> Self::Output {
+        match input {
+            Ok(value) => M::lift_output(Cont::compute(context, code, value)),
+            Err(err) => M::lift_value(Err(err)),
         }
     }
 }
 
 #[cgp_provider]
-impl<Context, Code, Input, ProviderA, ProviderB, T1, T2, E> TryComputer<Context, Code, Input>
-    for ComposeErr<ProviderA, ProviderB>
-where
-    Context: HasErrorType,
-    ProviderA: TryComputer<Context, Code, Input, Output = Result<T1, E>>,
-    ProviderB: TryComputer<Context, Code, T1, Output = Result<T2, E>>,
-{
-    type Output = Result<T2, E>;
-
-    fn try_compute(
-        context: &Context,
-        code: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Self::Output, Context::Error> {
-        let res = ProviderA::try_compute(context, code, input)?;
-        match res {
-            Ok(value) => ProviderB::try_compute(context, code, value),
-            Err(err) => Ok(Err(err)),
-        }
-    }
-}
-
-#[cgp_provider]
-impl<Context, Code: Send, Input: Send, ProviderA, ProviderB, T1: Send, T2: Send, E: Send>
-    Handler<Context, Code, Input> for ComposeErr<ProviderA, ProviderB>
+impl<Context, Code: Send, T1: Send, T2, E: Send, M, Cont> Handler<Context, Code, Result<T1, E>>
+    for BindErr<M, Cont>
 where
     Context: HasAsyncErrorType,
-    ProviderA: Handler<Context, Code, Input, Output = Result<T1, E>>,
-    ProviderB: Handler<Context, Code, T1, Output = Result<T2, E>>,
+    Cont: Handler<Context, Code, T1>,
+    M: ContainsValue<Cont::Output, Value = Result<T2, E>> + LiftValue<Result<T2, E>, Cont::Output>,
 {
-    type Output = Result<T2, E>;
+    type Output = M::Output;
 
     async fn handle(
         context: &Context,
         code: PhantomData<Code>,
-        input: Input,
+        input: Result<T1, E>,
     ) -> Result<Self::Output, Context::Error> {
-        let res = ProviderA::handle(context, code, input).await?;
-        match res {
-            Ok(value) => ProviderB::handle(context, code, value).await,
-            Err(err) => Ok(Err(err)),
+        match input {
+            Ok(value) => Ok(M::lift_output(Cont::handle(context, code, value).await?)),
+            Err(err) => Ok(M::lift_value(Err(err))),
         }
     }
 }

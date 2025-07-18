@@ -1,4 +1,6 @@
-use cgp::extra::monad::monadic::err::{ComposeErr, ErrMonadic};
+use cgp::extra::handler::PipeHandlers;
+use cgp::extra::monad::monadic::err::{BindErr, ErrMonadic};
+use cgp::extra::monad::monadic::ident::IdentMonadic;
 use cgp::extra::monad::providers::PipeMonadic;
 use cgp::prelude::*;
 
@@ -16,12 +18,16 @@ fn test_increment() {
     assert_eq!(Increment::compute(&context, code, 255), Err("overflow"));
 
     assert_eq!(
-        ComposeErr::<Increment, Increment>::compute(&context, code, 1),
+        PipeHandlers::<Product![Increment, BindErr<IdentMonadic, Increment>]>::compute(
+            &context, code, 1,
+        ),
         Ok(3),
     );
 
     assert_eq!(
-        ComposeErr::<Increment, Increment>::compute(&context, code, 254),
+        PipeHandlers::<Product![Increment, BindErr<IdentMonadic, Increment>]>::compute(
+            &context, code, 254,
+        ),
         Err("overflow"),
     );
 

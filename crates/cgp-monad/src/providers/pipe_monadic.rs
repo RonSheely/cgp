@@ -1,167 +1,60 @@
+use cgp_core::field::MapFields;
 use cgp_core::prelude::*;
 use cgp_handler::{
-    Computer, ComputerComponent, Handler, HandlerComponent, TryComputer, TryComputerComponent,
+    ComposeHandlers, ComputerComponent, HandlerComponent, TryComputerComponent, TryPromote,
 };
 
-use crate::traits::Compose;
+use crate::monadic::err::ErrMonadic;
+use crate::traits::{MonadicBind, MonadicTrans};
 
 pub struct PipeMonadic<M, Providers>(pub PhantomData<(M, Providers)>);
 
-#[cgp_provider]
-impl<Context, Code, Input, Output, M, Providers> Computer<Context, Code, Input>
-    for PipeMonadic<M, Providers>
-where
-    Providers: PipeComputer<M, Context, Code, Input, Output = Output>,
-{
-    type Output = Output;
-
-    fn compute(context: &Context, _code: PhantomData<Code>, input: Input) -> Self::Output {
-        Providers::compute(context, input)
+delegate_components! {
+    <Provider, M, Providers: BindProviders<M, Provider = Provider>>
+    PipeMonadic<M, Providers> {
+        [
+            ComputerComponent,
+            HandlerComponent,
+        ]: Provider,
     }
 }
 
-#[cgp_provider]
-impl<Context, Code, Input, Output, M, Providers> TryComputer<Context, Code, Input>
-    for PipeMonadic<M, Providers>
-where
-    Context: HasErrorType,
-    Providers: PipeTryComputer<M, Context, Code, Input, Output = Output>,
-{
-    type Output = Output;
+// Support monadic piping of TryComputer by first demoting them to Computer,
+// together with a monad transformer application of ErrMonadic to the base monad,
+// compose them, and then TryPromote them again back into TryComputer.
 
-    fn try_compute(
-        context: &Context,
-        _code: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Self::Output, Context::Error> {
-        Providers::try_compute(context, input)
+delegate_components! {
+    <
+        Provider,
+        M1: MonadicTrans<ErrMonadic, M = M2>,
+        M2,
+        ProvidersA: MapFields<TryPromoteProviders, Mapped = ProvidersB>,
+        ProvidersB: BindProviders<M2, Provider = Provider>,
+    >
+    PipeMonadic<M1, ProvidersA> {
+        TryComputerComponent: TryPromote<Provider>,
     }
 }
 
-#[cgp_provider]
-impl<Context, Code: Send, Input: Send, Output, M, Providers> Handler<Context, Code, Input>
-    for PipeMonadic<M, Providers>
-where
-    Context: HasAsyncErrorType,
-    Providers: PipeHandler<M, Context, Code, Input, Output = Output>,
-{
-    type Output = Output;
+pub struct TryPromoteProviders;
 
-    async fn handle(
-        context: &Context,
-        _code: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Self::Output, Context::Error> {
-        Providers::handle(context, input).await
-    }
+impl MapType for TryPromoteProviders {
+    type Map<Provider> = TryPromote<Provider>;
 }
 
-trait PipeComputer<M, Context, Code, Input> {
-    type Output;
-
-    fn compute(context: &Context, input: Input) -> Self::Output;
+trait BindProviders<M> {
+    type Provider;
 }
 
-impl<Context, Code, Input, M, ProviderA, ProviderB, RestProviders, OutProvider>
-    PipeComputer<M, Context, Code, Input> for Cons<ProviderA, Cons<ProviderB, RestProviders>>
+impl<M, ProviderA, ProviderB, RestProviders, OutProviders> BindProviders<M>
+    for Cons<ProviderA, Cons<ProviderB, RestProviders>>
 where
-    M: Compose<ProviderA, PipeMonadic<M, Cons<ProviderB, RestProviders>>, Provider = OutProvider>,
-    OutProvider: Computer<Context, Code, Input>,
+    Cons<ProviderB, RestProviders>: BindProviders<M, Provider = OutProviders>,
+    M: MonadicBind<OutProviders>,
 {
-    type Output = OutProvider::Output;
-
-    fn compute(context: &Context, input: Input) -> Self::Output {
-        OutProvider::compute(context, PhantomData, input)
-    }
+    type Provider = ComposeHandlers<ProviderA, M::Provider>;
 }
 
-impl<Context, Code, Input, M, Provider> PipeComputer<M, Context, Code, Input>
-    for Cons<Provider, Nil>
-where
-    Provider: Computer<Context, Code, Input>,
-{
-    type Output = Provider::Output;
-
-    fn compute(context: &Context, input: Input) -> Self::Output {
-        Provider::compute(context, PhantomData, input)
-    }
-}
-
-trait PipeTryComputer<M, Context, Code, Input>
-where
-    Context: HasErrorType,
-{
-    type Output;
-
-    fn try_compute(context: &Context, input: Input) -> Result<Self::Output, Context::Error>;
-}
-
-impl<Context, Code, Input, M, ProviderA, ProviderB, RestProviders, OutProvider>
-    PipeTryComputer<M, Context, Code, Input> for Cons<ProviderA, Cons<ProviderB, RestProviders>>
-where
-    Context: HasErrorType,
-    M: Compose<ProviderA, PipeMonadic<M, Cons<ProviderB, RestProviders>>, Provider = OutProvider>,
-    OutProvider: TryComputer<Context, Code, Input>,
-{
-    type Output = OutProvider::Output;
-
-    fn try_compute(context: &Context, input: Input) -> Result<Self::Output, Context::Error> {
-        OutProvider::try_compute(context, PhantomData, input)
-    }
-}
-
-impl<Context, Code, Input, M, Provider> PipeTryComputer<M, Context, Code, Input>
-    for Cons<Provider, Nil>
-where
-    Context: HasErrorType,
-    Provider: TryComputer<Context, Code, Input>,
-{
-    type Output = Provider::Output;
-
-    fn try_compute(
-        context: &Context,
-        input: Input,
-    ) -> Result<Self::Output, <Context as HasErrorType>::Error> {
-        Provider::try_compute(context, PhantomData, input)
-    }
-}
-
-#[async_trait]
-trait PipeHandler<M, Context, Code, Input>
-where
-    Context: HasAsyncErrorType,
-{
-    type Output;
-
-    async fn handle(context: &Context, input: Input) -> Result<Self::Output, Context::Error>;
-}
-
-impl<Context, Code: Send, Input: Send, M, ProviderA, ProviderB, RestProviders, OutProvider>
-    PipeHandler<M, Context, Code, Input> for Cons<ProviderA, Cons<ProviderB, RestProviders>>
-where
-    Context: HasAsyncErrorType,
-    M: Compose<ProviderA, PipeMonadic<M, Cons<ProviderB, RestProviders>>, Provider = OutProvider>,
-    OutProvider: Handler<Context, Code, Input>,
-{
-    type Output = OutProvider::Output;
-
-    async fn handle(context: &Context, input: Input) -> Result<Self::Output, Context::Error> {
-        OutProvider::handle(context, PhantomData, input).await
-    }
-}
-
-impl<Context, Code: Send, Input: Send, M, Provider> PipeHandler<M, Context, Code, Input>
-    for Cons<Provider, Nil>
-where
-    Context: HasAsyncErrorType,
-    Provider: Handler<Context, Code, Input>,
-{
-    type Output = Provider::Output;
-
-    async fn handle(
-        context: &Context,
-        input: Input,
-    ) -> Result<Self::Output, <Context as HasErrorType>::Error> {
-        Provider::handle(context, PhantomData, input).await
-    }
+impl<M, Provider> BindProviders<M> for Cons<Provider, Nil> {
+    type Provider = Provider;
 }

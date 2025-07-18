@@ -1,69 +1,27 @@
-use cgp_core::prelude::*;
-use cgp_handler::{
-    Computer, ComputerComponent, Handler, HandlerComponent, TryComputer, TryComputerComponent,
-};
-
-use crate::traits::Compose;
+use crate::traits::{ContainsValue, LiftValue, MonadicBind, MonadicTrans};
 
 pub struct IdentMonadic;
 
-impl<ProviderA, ProviderB> Compose<ProviderA, ProviderB> for IdentMonadic {
-    type Provider = ComposeIdent<ProviderA, ProviderB>;
+impl<M> MonadicTrans<M> for IdentMonadic {
+    type M = M;
 }
 
-pub struct ComposeIdent<ProviderA, ProviderB>(pub PhantomData<(ProviderA, ProviderB)>);
+impl<Provider> MonadicBind<Provider> for IdentMonadic {
+    type Provider = Provider;
+}
 
-#[cgp_provider]
-impl<Context, Code, Input, ProviderA, ProviderB> Computer<Context, Code, Input>
-    for ComposeIdent<ProviderA, ProviderB>
-where
-    ProviderA: Computer<Context, Code, Input>,
-    ProviderB: Computer<Context, Code, ProviderA::Output>,
-{
-    type Output = ProviderB::Output;
+impl<T> ContainsValue<T> for IdentMonadic {
+    type Value = T;
+}
 
-    fn compute(context: &Context, code: PhantomData<Code>, input: Input) -> Self::Output {
-        let res = ProviderA::compute(context, code, input);
-        ProviderB::compute(context, code, res)
+impl<T> LiftValue<T, T> for IdentMonadic {
+    type Output = T;
+
+    fn lift_value(value: T) -> T {
+        value
     }
-}
 
-#[cgp_provider]
-impl<Context, Code, Input, ProviderA, ProviderB> TryComputer<Context, Code, Input>
-    for ComposeIdent<ProviderA, ProviderB>
-where
-    Context: HasErrorType,
-    ProviderA: TryComputer<Context, Code, Input>,
-    ProviderB: TryComputer<Context, Code, ProviderA::Output>,
-{
-    type Output = ProviderB::Output;
-
-    fn try_compute(
-        context: &Context,
-        code: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Self::Output, Context::Error> {
-        let res = ProviderA::try_compute(context, code, input)?;
-        ProviderB::try_compute(context, code, res)
-    }
-}
-
-#[cgp_provider]
-impl<Context, Code: Send, Input: Send, ProviderA, ProviderB> Handler<Context, Code, Input>
-    for ComposeIdent<ProviderA, ProviderB>
-where
-    Context: HasAsyncErrorType,
-    ProviderA: Handler<Context, Code, Input>,
-    ProviderB: Handler<Context, Code, ProviderA::Output>,
-{
-    type Output = ProviderB::Output;
-
-    async fn handle(
-        context: &Context,
-        code: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Self::Output, Context::Error> {
-        let res = ProviderA::handle(context, code, input).await?;
-        ProviderB::handle(context, code, res).await
+    fn lift_output(value: T) -> T {
+        value
     }
 }
