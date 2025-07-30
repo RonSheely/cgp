@@ -1,8 +1,10 @@
 use std::f64::consts::PI;
 
-use cgp::core::field::{CanDowncast, CanDowncastFields, CanUpcast};
-use cgp::extra::dispatch::{ExtractFieldAndHandle, MatchWithHandlers};
-use cgp::extra::handler::HandleFieldValue;
+use cgp::core::field::{CanDowncast, CanDowncastFields, CanUpcast, FinalizeExtractResult};
+use cgp::extra::dispatch::{
+    ExtractFieldAndHandle, MatchWithHandlers, MatchWithValueHandlers, MatchWithValueHandlersRef,
+};
+use cgp::extra::handler::{ComputerRef, HandleFieldValue, NoCode, UseInputDelegate};
 use cgp::prelude::*;
 
 #[derive(Debug, PartialEq, HasFields, FromVariant, ExtractField)]
@@ -50,10 +52,13 @@ fn test_shape_area() {
     {
         Ok(circle) => PI * circle.radius * circle.radius,
         // PartialShape<IsVoid, IsPresent>
-        Err(remainder) => match remainder.extract_field(PhantomData::<symbol!("Rectangle")>) {
-            Ok(rectangle) => rectangle.width * rectangle.height,
-            // PartialShape<IsVoid, IsVoid>
-        },
+        Err(remainder) => {
+            let rectangle = remainder
+                .extract_field(PhantomData::<symbol!("Rectangle")>)
+                .finalize_extract_result();
+
+            rectangle.width * rectangle.height
+        }
     };
 }
 
@@ -83,9 +88,12 @@ fn test_shape_downcast() {
             Shape::Rectangle(rectangle) => rectangle.width * rectangle.height,
         },
         // PartialShapePlus<IsPresent, IsVoid, IsVoid>
-        Err(remainder) => match remainder.downcast_fields(PhantomData::<TriangleOnly>) {
-            Ok(TriangleOnly::Triangle(triangle)) => triangle.base * triangle.height / 2.0,
-        },
+        Err(remainder) => {
+            let TriangleOnly::Triangle(triangle) = remainder
+                .downcast_fields(PhantomData::<TriangleOnly>)
+                .finalize_extract_result();
+            triangle.base * triangle.height / 2.0
+        }
     };
 }
 
@@ -116,6 +124,18 @@ impl HasArea for Triangle {
     }
 }
 
+impl HasArea for Shape {
+    fn area(self) -> f64 {
+        MatchWithValueHandlers::<ComputeArea>::compute(&(), NoCode, self)
+    }
+}
+
+impl HasArea for ShapePlus {
+    fn area(self) -> f64 {
+        MatchWithValueHandlers::<ComputeArea>::compute(&(), NoCode, self)
+    }
+}
+
 #[test]
 fn test_match_with_handlers() {
     let circle = Shape::Circle(Circle { radius: 5.0 });
@@ -127,3 +147,73 @@ fn test_match_with_handlers() {
         ],
     >::compute(&(), PhantomData::<()>, circle);
 }
+
+#[cgp_context]
+pub struct App;
+
+delegate_components! {
+    AppComponents {
+        ComputerComponent: UseInputDelegate<new AreaComputers {
+            [
+                Circle,
+                Rectangle,
+                Triangle,
+            ]:
+                ComputeArea,
+            [
+                Shape,
+                ShapePlus,
+            ]: MatchWithValueHandlers,
+        }>
+    }
+}
+
+check_components! {
+    CanUseApp for App {
+        ComputerComponent: [
+            ((), Shape),
+            ((), ShapePlus),
+        ],
+    }
+}
+
+pub trait HasAreaRef {
+    fn area(&self) -> f64;
+}
+
+impl HasAreaRef for Circle {
+    fn area(&self) -> f64 {
+        PI * self.radius * self.radius
+    }
+}
+
+impl HasAreaRef for Rectangle {
+    fn area(&self) -> f64 {
+        self.width * self.height
+    }
+}
+
+impl HasAreaRef for Triangle {
+    fn area(&self) -> f64 {
+        self.base * self.height / 2.0
+    }
+}
+
+impl<Context> HasAreaRef for Context
+where
+    Context: HasExtractorRef,
+    MatchWithValueHandlersRef<ComputeAreaRef>: ComputerRef<(), (), Context, Output = f64>,
+{
+    fn area(&self) -> f64 {
+        MatchWithValueHandlersRef::<ComputeAreaRef>::compute_ref(&(), NoCode, self)
+    }
+}
+
+#[cgp_computer]
+fn compute_area_ref<T: HasAreaRef>(shape: &T) -> f64 {
+    shape.area()
+}
+
+pub trait CheckHasArea: HasAreaRef {}
+impl CheckHasArea for Shape {}
+impl CheckHasArea for ShapePlus {}
