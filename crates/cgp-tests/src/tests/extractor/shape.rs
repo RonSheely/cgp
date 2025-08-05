@@ -2,9 +2,10 @@ use std::f64::consts::PI;
 
 use cgp::core::field::{CanDowncast, CanDowncastFields, CanUpcast, FinalizeExtractResult};
 use cgp::extra::dispatch::{
-    ExtractFieldAndHandle, MatchWithHandlers, MatchWithValueHandlers, MatchWithValueHandlersRef,
+    ExtractFieldAndHandle, ExtractFirstFieldAndHandle, HandleFirstFieldValue,
+    MatchFirstWithHandlers, MatchFirstWithValueHandlers, MatchWithHandlers, MatchWithValueHandlers,
 };
-use cgp::extra::handler::{ComputerRef, HandleFieldValue, NoCode, UseInputDelegate};
+use cgp::extra::handler::{HandleFieldValue, NoCode, UseInputDelegate};
 use cgp::prelude::*;
 
 #[derive(Debug, PartialEq, HasFields, FromVariant, ExtractField)]
@@ -148,6 +149,57 @@ fn test_match_with_handlers() {
     >::compute(&(), PhantomData::<()>, circle);
 }
 
+pub trait Container {
+    fn contains(self, x: f64, y: f64) -> bool;
+}
+
+impl Container for Circle {
+    fn contains(self, _x: f64, _y: f64) -> bool {
+        true // stub
+    }
+}
+
+impl Container for Rectangle {
+    fn contains(self, _x: f64, _y: f64) -> bool {
+        true // stub
+    }
+}
+
+impl Container for Triangle {
+    fn contains(self, _x: f64, _y: f64) -> bool {
+        true // stub
+    }
+}
+
+impl Container for Shape {
+    fn contains(self, x: f64, y: f64) -> bool {
+        MatchFirstWithValueHandlers::<Contains>::compute(&(), NoCode, (self, (x, y)))
+    }
+}
+
+impl Container for ShapePlus {
+    fn contains(self, x: f64, y: f64) -> bool {
+        MatchFirstWithValueHandlers::<Contains>::compute(&(), NoCode, (self, (x, y)))
+    }
+}
+
+#[cgp_computer]
+fn contains<T: Container>(shape: T, (x, y): (f64, f64)) -> bool {
+    shape.contains(x, y)
+}
+
+#[test]
+fn test_dispatch_contains() {
+    let circle = Shape::Circle(Circle { radius: 5.0 });
+
+    let _is_contained = MatchFirstWithHandlers::<
+        Product![
+            ExtractFirstFieldAndHandle<symbol!("Circle"), HandleFirstFieldValue<Contains>>,
+            ExtractFirstFieldAndHandle<symbol!("Rectangle"), HandleFirstFieldValue<Contains>>,
+        ],
+    >::compute(&(), PhantomData::<()>, (circle, (1.0, 2.0)));
+}
+
 #[cgp_context]
 pub struct App;
 
@@ -176,44 +228,3 @@ check_components! {
         ],
     }
 }
-
-pub trait HasAreaRef {
-    fn area(&self) -> f64;
-}
-
-impl HasAreaRef for Circle {
-    fn area(&self) -> f64 {
-        PI * self.radius * self.radius
-    }
-}
-
-impl HasAreaRef for Rectangle {
-    fn area(&self) -> f64 {
-        self.width * self.height
-    }
-}
-
-impl HasAreaRef for Triangle {
-    fn area(&self) -> f64 {
-        self.base * self.height / 2.0
-    }
-}
-
-impl<Context> HasAreaRef for Context
-where
-    Context: HasExtractorRef,
-    MatchWithValueHandlersRef<ComputeAreaRef>: ComputerRef<(), (), Context, Output = f64>,
-{
-    fn area(&self) -> f64 {
-        MatchWithValueHandlersRef::<ComputeAreaRef>::compute_ref(&(), NoCode, self)
-    }
-}
-
-#[cgp_computer]
-fn compute_area_ref<T: HasAreaRef>(shape: &T) -> f64 {
-    shape.area()
-}
-
-pub trait CheckHasArea: HasAreaRef {}
-impl CheckHasArea for Shape {}
-impl CheckHasArea for ShapePlus {}
