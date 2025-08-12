@@ -1,35 +1,11 @@
 use cgp_core::prelude::*;
 
 use crate::{
-    Computer, ComputerComponent, Handler, HandlerComponent, Producer, TryComputer,
+    AsyncComputer, Computer, ComputerComponent, Handler, HandlerComponent, Producer, TryComputer,
     TryComputerComponent,
 };
 
 pub struct Promote<Provider>(pub PhantomData<Provider>);
-
-pub type Promote2<Provider> = Promote<Promote<Provider>>;
-
-pub type Promote3<Provider> = Promote<Promote2<Provider>>;
-
-#[cgp_provider]
-impl<Context, Code, Input, Output, Provider> Handler<Context, Code, Input> for Promote<Provider>
-where
-    Context: HasAsyncErrorType,
-    Provider: TryComputer<Context, Code, Input, Output = Output>,
-    Code: Send,
-    Input: Send,
-    Output: Send,
-{
-    type Output = Output;
-
-    async fn handle(
-        context: &Context,
-        tag: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Output, Context::Error> {
-        Provider::try_compute(context, tag, input)
-    }
-}
 
 #[cgp_provider]
 impl<Context, Code, Input, Output, Provider> Computer<Context, Code, Input> for Promote<Provider>
@@ -57,5 +33,23 @@ where
         input: Input,
     ) -> Result<Self::Output, Context::Error> {
         Ok(Provider::compute(context, code, input))
+    }
+}
+
+#[cgp_provider]
+impl<Context, Code: Send, Input: Send, Output, Provider> Handler<Context, Code, Input>
+    for Promote<Provider>
+where
+    Context: HasAsyncErrorType,
+    Provider: AsyncComputer<Context, Code, Input, Output = Output>,
+{
+    type Output = Output;
+
+    async fn handle(
+        context: &Context,
+        code: PhantomData<Code>,
+        input: Input,
+    ) -> Result<Self::Output, Context::Error> {
+        Ok(Provider::compute_async(context, code, input).await)
     }
 }
