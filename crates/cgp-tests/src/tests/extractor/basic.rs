@@ -5,13 +5,10 @@ use core::marker::PhantomData;
 use cgp::core::error::ErrorTypeProviderComponent;
 use cgp::core::field::{CanDowncast, CanDowncastFields, CanUpcast};
 use cgp::extra::dispatch::{
-    DowncastAndHandle, ExtractFieldAndHandle, MatchWithFieldHandlers, MatchWithHandlers,
-    MatchWithValueHandlersRef,
+    DowncastAndHandle, ExtractFieldAndHandle, HandleFieldValue, MatchWithFieldHandlers,
+    MatchWithHandlers, MatchWithValueHandlersRef,
 };
-use cgp::extra::handler::{
-    Computer, ComputerComponent, ComputerRef, ComputerRefComponent, HandleFieldValue, Handler,
-    Promote, PromoteAsync,
-};
+use cgp::extra::handler::{Computer, ComputerComponent, ComputerRefComponent, PromoteAsync};
 use cgp::prelude::*;
 use futures::executor::block_on;
 
@@ -182,16 +179,12 @@ fn test_dispatch_values_ref() {
     let code = PhantomData::<()>;
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToStringRef>::compute_ref(
-            &context,
-            code,
-            &FooBarBaz::Foo(1)
-        ),
+        MatchWithValueHandlersRef::<ValueToStringRef>::compute(&context, code, &FooBarBaz::Foo(1)),
         "1"
     );
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToStringRef>::compute_ref(
+        MatchWithValueHandlersRef::<ValueToStringRef>::compute(
             &context,
             code,
             &FooBarBaz::Bar("hello".to_owned())
@@ -200,7 +193,7 @@ fn test_dispatch_values_ref() {
     );
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToStringRef>::compute_ref(
+        MatchWithValueHandlersRef::<ValueToStringRef>::compute(
             &context,
             code,
             &FooBarBaz::Baz(true)
@@ -210,13 +203,13 @@ fn test_dispatch_values_ref() {
 }
 
 #[cgp_new_provider]
-impl<Context, Code, Value> ComputerRef<Context, Code, Value> for ValueToString
+impl<Context, Code, Value> Computer<Context, Code, &Value> for ValueToString
 where
     Value: Display,
 {
     type Output = String;
 
-    fn compute_ref(_context: &Context, _code: PhantomData<Code>, input: &Value) -> Self::Output {
+    fn compute(_context: &Context, _code: PhantomData<Code>, input: &Value) -> Self::Output {
         input.to_string()
     }
 }
@@ -227,12 +220,12 @@ fn test_dispatch_fields_ref() {
     let code = PhantomData::<()>;
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToString>::compute_ref(&context, code, &FooBarBaz::Foo(1)),
+        MatchWithValueHandlersRef::<ValueToString>::compute(&context, code, &FooBarBaz::Foo(1)),
         "1"
     );
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToString>::compute_ref(
+        MatchWithValueHandlersRef::<ValueToString>::compute(
             &context,
             code,
             &FooBarBaz::Bar("hello".to_owned())
@@ -241,11 +234,7 @@ fn test_dispatch_fields_ref() {
     );
 
     assert_eq!(
-        MatchWithValueHandlersRef::<ValueToString>::compute_ref(
-            &context,
-            code,
-            &FooBarBaz::Baz(true)
-        ),
+        MatchWithValueHandlersRef::<ValueToString>::compute(&context, code, &FooBarBaz::Baz(true)),
         "true"
     );
 }
@@ -256,32 +245,29 @@ fn test_async_dispatch_fields() {
     let code = PhantomData::<()>;
 
     assert_eq!(
-        block_on(MatchWithFieldHandlers::<FieldToString>::handle(
+        block_on(MatchWithFieldHandlers::<FieldToString>::compute_async(
             &context,
             code,
             FooBarBaz::Foo(1)
-        ))
-        .unwrap(),
+        )),
         "1"
     );
 
     assert_eq!(
-        block_on(MatchWithFieldHandlers::<FieldToString>::handle(
+        block_on(MatchWithFieldHandlers::<FieldToString>::compute_async(
             &context,
             code,
             FooBarBaz::Bar("hello".to_owned())
-        ))
-        .unwrap(),
+        )),
         "hello"
     );
 
     assert_eq!(
-        block_on(MatchWithFieldHandlers::<FieldToString>::handle(
+        block_on(MatchWithFieldHandlers::<FieldToString>::compute_async(
             &context,
             code,
             FooBarBaz::Baz(true)
-        ))
-        .unwrap(),
+        )),
         "true"
     );
 }
@@ -302,8 +288,8 @@ type Computers = Product![
 ];
 
 type Handlers = Product![
-    PromoteAsync<Promote<ExtractFieldAndHandle<symbol!("Baz"), HandleFieldValue<ShowBaz>>>>,
-    PromoteAsync<Promote<DowncastAndHandle<FooBar, ShowFooBar>>>,
+    PromoteAsync<ExtractFieldAndHandle<symbol!("Baz"), HandleFieldValue<ShowBaz>>>,
+    PromoteAsync<DowncastAndHandle<FooBar, ShowFooBar>>,
 ];
 
 #[test]
@@ -314,11 +300,6 @@ fn test_dispatch_computers() {
     assert_eq!(
         MatchWithHandlers::<Computers>::compute(&context, code, FooBarBaz::Foo(1)),
         "FooBar::Foo(1)"
-    );
-
-    assert_eq!(
-        MatchWithHandlers::<Computers>::try_compute(&context, code, FooBarBaz::Foo(1)),
-        Ok("FooBar::Foo(1)".to_owned())
     );
 
     assert_eq!(
@@ -338,32 +319,29 @@ fn test_dispatch_handlers() {
     let code = PhantomData::<()>;
 
     assert_eq!(
-        block_on(MatchWithHandlers::<Handlers>::handle(
+        block_on(MatchWithHandlers::<Handlers>::compute_async(
             &context,
             code,
             FooBarBaz::Foo(1)
-        ))
-        .unwrap(),
+        )),
         "FooBar::Foo(1)"
     );
 
     assert_eq!(
-        block_on(MatchWithHandlers::<Handlers>::handle(
+        block_on(MatchWithHandlers::<Handlers>::compute_async(
             &context,
             code,
             FooBarBaz::Bar("hello".to_owned())
-        ))
-        .unwrap(),
+        )),
         "FooBar::Bar(\"hello\")"
     );
 
     assert_eq!(
-        block_on(MatchWithHandlers::<Handlers>::handle(
+        block_on(MatchWithHandlers::<Handlers>::compute_async(
             &context,
             code,
             FooBarBaz::Baz(true)
-        ))
-        .unwrap(),
+        )),
         "Baz(true)"
     );
 }

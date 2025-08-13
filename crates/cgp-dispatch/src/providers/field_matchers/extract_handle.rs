@@ -1,8 +1,6 @@
 use cgp_core::field::CanDowncastFields;
 use cgp_core::prelude::*;
-use cgp_handler::{
-    Computer, ComputerComponent, Handler, HandlerComponent, TryComputer, TryComputerComponent,
-};
+use cgp_handler::{AsyncComputer, AsyncComputerComponent, Computer, ComputerComponent};
 
 pub struct DowncastAndHandle<Input, Provider = UseContext>(pub PhantomData<(Input, Provider)>);
 
@@ -27,55 +25,34 @@ where
 }
 
 #[cgp_provider]
-impl<Context, Code, Input, Provider, Inner, Output, Remainder> TryComputer<Context, Code, Input>
-    for DowncastAndHandle<Inner, Provider>
+impl<
+        Context: Async,
+        Code: Send,
+        Input: Send,
+        Provider,
+        Inner: Send,
+        Output: Send,
+        Remainder: Send,
+    > AsyncComputer<Context, Code, Input> for DowncastAndHandle<Inner, Provider>
 where
-    Context: HasErrorType,
     Input: CanDowncastFields<Inner, Remainder = Remainder>,
-    Provider: TryComputer<Context, Code, Inner, Output = Output>,
+    Provider: AsyncComputer<Context, Code, Inner, Output = Output>,
 {
     type Output = Result<Output, Remainder>;
 
-    fn try_compute(
+    async fn compute_async(
         context: &Context,
         tag: PhantomData<Code>,
         input: Input,
-    ) -> Result<Result<Output, Remainder>, Context::Error> {
+    ) -> Result<Output, Remainder> {
         let inner = input.downcast_fields(PhantomData::<Inner>);
 
         match inner {
             Ok(inner) => {
-                let output = Provider::try_compute(context, tag, inner)?;
-                Ok(Ok(output))
+                let output = Provider::compute_async(context, tag, inner).await;
+                Ok(output)
             }
-            Err(remainder) => Ok(Err(remainder)),
-        }
-    }
-}
-
-#[cgp_provider]
-impl<Context, Code: Send, Input: Send, Provider, Inner: Send, Output: Send, Remainder: Send>
-    Handler<Context, Code, Input> for DowncastAndHandle<Inner, Provider>
-where
-    Context: HasAsyncErrorType,
-    Input: CanDowncastFields<Inner, Remainder = Remainder>,
-    Provider: Handler<Context, Code, Inner, Output = Output>,
-{
-    type Output = Result<Output, Remainder>;
-
-    async fn handle(
-        context: &Context,
-        tag: PhantomData<Code>,
-        input: Input,
-    ) -> Result<Result<Output, Remainder>, Context::Error> {
-        let inner = input.downcast_fields(PhantomData::<Inner>);
-
-        match inner {
-            Ok(inner) => {
-                let output = Provider::handle(context, tag, inner).await?;
-                Ok(Ok(output))
-            }
-            Err(remainder) => Ok(Err(remainder)),
+            Err(remainder) => Err(remainder),
         }
     }
 }

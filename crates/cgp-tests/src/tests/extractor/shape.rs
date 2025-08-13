@@ -2,10 +2,10 @@ use std::f64::consts::PI;
 
 use cgp::core::field::{CanDowncast, CanDowncastFields, CanUpcast, FinalizeExtractResult};
 use cgp::extra::dispatch::{
-    ExtractFieldAndHandle, ExtractFirstFieldAndHandle, HandleFirstFieldValue,
+    ExtractFieldAndHandle, ExtractFirstFieldAndHandle, HandleFieldValue, HandleFirstFieldValue,
     MatchFirstWithHandlers, MatchFirstWithValueHandlers, MatchWithHandlers, MatchWithValueHandlers,
 };
-use cgp::extra::handler::{HandleFieldValue, NoCode, UseInputDelegate};
+use cgp::extra::handler::{NoCode, UseInputDelegate};
 use cgp::prelude::*;
 
 #[derive(Debug, PartialEq, HasFields, FromVariant, ExtractField)]
@@ -98,13 +98,9 @@ fn test_shape_downcast() {
     };
 }
 
+#[cgp_dispatch]
 pub trait HasArea {
     fn area(self) -> f64;
-}
-
-#[cgp_computer]
-fn compute_area<T: HasArea>(shape: T) -> f64 {
-    shape.area()
 }
 
 impl HasArea for Circle {
@@ -122,18 +118,6 @@ impl HasArea for Rectangle {
 impl HasArea for Triangle {
     fn area(self) -> f64 {
         self.base * self.height / 2.0
-    }
-}
-
-impl HasArea for Shape {
-    fn area(self) -> f64 {
-        MatchWithValueHandlers::<ComputeArea>::compute(&(), NoCode, self)
-    }
-}
-
-impl HasArea for ShapePlus {
-    fn area(self) -> f64 {
-        MatchWithValueHandlers::<ComputeArea>::compute(&(), NoCode, self)
     }
 }
 
