@@ -4,7 +4,7 @@ use crate::dispatcher_macro_tests::types::{Bar, Foo, FooBar};
 
 #[cgp_dispatch]
 pub trait CanCall {
-    fn call<'a>(self, _a: &'a mut u64, _b: bool) -> &'a str;
+    fn call(self, _a: &mut u64, _b: bool) -> &str;
 }
 
 impl CanCall for Foo {

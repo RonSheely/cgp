@@ -6,8 +6,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{
-    parse2, FnArg, Ident, ImplItem, ImplItemFn, ItemTrait, Lifetime, Pat, PatIdent, ReturnType,
-    TraitItemFn, Type, Visibility,
+    parse2, FnArg, GenericParam, Ident, ImplItem, ImplItemFn, ItemTrait, Lifetime, Pat, PatIdent,
+    ReturnType, TraitItemFn, Type, Visibility,
 };
 
 use crate::utils::to_camel_case_str;
@@ -70,6 +70,18 @@ fn derive_blanket_impl(item_trait: &ItemTrait) -> syn::Result<TokenStream> {
             &format!("Compute{}", to_camel_case_str(&method_ident.to_string())),
             method_ident.span(),
         );
+
+        for generic_param in signature.generics.params.iter() {
+            match generic_param {
+                GenericParam::Lifetime(_) => {}
+                _ => {
+                    return Err(syn::Error::new(
+                        generic_param.span(),
+                        "Dispatch trait methods cannot contain non-lifetime generic parameters due to the lack of quantified constraints in Rust",
+                    ));
+                }
+            }
+        }
 
         let mut args = signature.inputs.iter_mut();
 
@@ -281,6 +293,7 @@ fn derive_method_computer(
         generics
             .params
             .extend(signature.generics.params.iter().cloned());
+
         if let Some(method_where_clause) = &signature.generics.where_clause {
             generics
                 .make_where_clause()
@@ -347,16 +360,17 @@ fn derive_method_computer(
 
     for (i, arg) in args.enumerate() {
         if let FnArg::Typed(pat_type) = arg {
-            let mut arg_type = pat_type.ty.as_ref().clone();
-            if let Type::Reference(arg_type) = &mut arg_type {
+            arg_idents.push(Ident::new(&format!("arg_{}", i), pat_type.span()));
+
+            let arg_type = pat_type.ty.as_mut();
+            if let Type::Reference(arg_type) = arg_type {
                 if arg_type.lifetime.is_none() {
                     use_extra_life = true;
                     arg_type.lifetime = Some(extra_life.clone());
                 }
             }
 
-            arg_idents.push(Ident::new(&format!("arg_{}", i), pat_type.span()));
-            arg_types.push(pat_type.ty.as_ref().clone());
+            arg_types.push(arg_type);
         } else {
             return Err(syn::Error::new(
                 arg.span(),
@@ -399,6 +413,22 @@ fn derive_method_computer(
         method_ident.span(),
     );
 
+    let method_generics = {
+        let method_generics = method
+            .sig
+            .generics
+            .params
+            .iter()
+            .filter(|param| !matches!(param, syn::GenericParam::Lifetime(_)))
+            .collect::<Punctuated<_, Comma>>();
+
+        if method_generics.is_empty() {
+            TokenStream::new()
+        } else {
+            quote! { ::< #method_generics > }
+        }
+    };
+
     let (impl_generics, _, where_clause) = generics.split_for_impl();
 
     Ok(quote! {
@@ -409,7 +439,7 @@ fn derive_method_computer(
         ) #return_type
         #where_clause
         {
-            #context_ident. #method_ident( #arg_idents ) #dot_await
+            #context_ident. #method_ident #method_generics ( #arg_idents ) #dot_await
         }
     })
 }
