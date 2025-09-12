@@ -7,7 +7,7 @@ use crate::derive_builder::{
     field_to_member, field_to_tag, field_value_expr, index_to_generic_ident, to_generic_args,
 };
 
-pub fn derive_build_field_impls(
+pub fn derive_update_field_impls(
     context_struct: &ItemStruct,
     builder_ident: &Ident,
 ) -> syn::Result<Vec<ItemImpl>> {
@@ -42,8 +42,16 @@ pub fn derive_build_field_impls(
                     quote! { self. #field_member },
                 )?);
             } else {
-                source_generic_args.push(parse2(quote! { IsNothing })?);
-                output_generic_args.push(parse2(quote! { IsPresent })?);
+                source_generic_args.push(parse2(quote! { __M1__ })?);
+                output_generic_args.push(parse2(quote! { __M2__ })?);
+
+                generics.params.push(parse2(quote! {
+                    __M1__: MapType
+                })?);
+
+                generics.params.push(parse2(quote! {
+                    __M2__: MapType
+                })?);
 
                 builder_fields.push(field_value_expr(field_member, quote! { value })?);
             }
@@ -61,19 +69,30 @@ pub fn derive_build_field_impls(
 
         let (impl_generics, _, where_clause) = generics.split_for_impl();
 
+        let member = field_to_member(current_index, current_field);
+
         let item_impl = parse2(quote! {
-            impl #impl_generics BuildField< #tag_type >
+            impl #impl_generics UpdateField< #tag_type, __M2__ >
                 for #source_type
             #where_clause
             {
                 type Value = #value_type;
 
+                type Mapper = __M1__;
+
                 type Output = #output_type;
 
-                fn build_field(self, _tag: ::core::marker::PhantomData< #tag_type >, value: Self::Value) -> Self::Output {
-                    #builder_ident {
-                        #builder_fields
-                    }
+                fn update_field(
+                    self,
+                    _tag: ::core::marker::PhantomData< #tag_type >,
+                    value: __M2__::Map<Self::Value>,
+                ) -> (__M1__::Map<Self::Value>, Self::Output) {
+                    (
+                        self. #member,
+                        #builder_ident {
+                            #builder_fields
+                        },
+                    )
                 }
             }
         })?;

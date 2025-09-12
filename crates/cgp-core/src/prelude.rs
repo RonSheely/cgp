@@ -13,8 +13,8 @@ pub use cgp_field::{
     BuildField, Char, Cons, Either, ExtractField, Field, FieldGetter, FinalizeBuild,
     FinalizeExtract, FromFields, FromVariant, HasBuilder, HasExtractor, HasExtractorMut,
     HasExtractorRef, HasField, HasFieldMut, HasFields, HasFieldsRef, Index, IntoBuilder, IsMut,
-    IsNothing, IsPresent, IsRef, IsVoid, MapType, MapTypeRef, MutFieldGetter, Nil, TakeField,
-    ToFields, ToFieldsRef, TransformMap, TransformMapFields, UseField, Void,
+    IsNothing, IsPresent, IsRef, IsVoid, MapType, MapTypeRef, MutFieldGetter, Nil, PartialData,
+    ToFields, ToFieldsRef, UpdateField, UseField, Void,
 };
 pub use cgp_macro::{
     cgp_auto_getter, cgp_component, cgp_context, cgp_getter, cgp_new_provider, cgp_preset,
