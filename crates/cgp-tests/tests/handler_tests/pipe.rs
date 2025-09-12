@@ -79,8 +79,7 @@ pub fn test_pipe_handlers() {
     #[cgp_new_provider]
     impl<Context, Tag, Field> Handler<Context, Tag, u64> for Multiply<Field>
     where
-        Context: HasAsyncErrorType + HasField<Field, Value = u64>,
-        Tag: Send,
+        Context: HasErrorType + HasField<Field, Value = u64>,
     {
         type Output = u64;
 
@@ -128,7 +127,7 @@ pub fn test_pipe_handlers() {
     }
 
     check_components! {
-        <Tag: Send>
+        <Tag>
         CanUseMyContext for MyContext {
             HandlerComponent: (Tag, u64),
         }

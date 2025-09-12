@@ -1,14 +1,27 @@
 #![no_std]
 
-use cgp_async::*;
-use cgp_component::*;
-use cgp_error::HasAsyncErrorType;
-use cgp_macro::*;
+use core::future::Future;
+use core::marker::PhantomData;
+
+use cgp_core::prelude::*;
 
 #[cgp_component {
     provider: Runner,
+    derive_delegate: UseDelegate<Code>,
 }]
 #[async_trait]
-pub trait CanRun: HasAsyncErrorType {
-    async fn run(&self) -> Result<(), Self::Error>;
+pub trait CanRun<Code>: HasErrorType {
+    async fn run(&self, _code: PhantomData<Code>) -> Result<(), Self::Error>;
+}
+
+#[cgp_component {
+    provider: SendRunner,
+    derive_delegate: UseDelegate<Code>,
+}]
+#[async_trait]
+pub trait CanSendRun<Code>: HasErrorType {
+    fn send_run(
+        &self,
+        _code: PhantomData<Code>,
+    ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }

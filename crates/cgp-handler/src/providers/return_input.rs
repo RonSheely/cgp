@@ -33,7 +33,7 @@ where
 }
 
 #[cgp_provider]
-impl<Context: Async, Code: Send, Input: Send> AsyncComputer<Context, Code, Input> for ReturnInput {
+impl<Context, Code, Input> AsyncComputer<Context, Code, Input> for ReturnInput {
     type Output = Input;
 
     async fn compute_async(
@@ -46,9 +46,9 @@ impl<Context: Async, Code: Send, Input: Send> AsyncComputer<Context, Code, Input
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input: Send> Handler<Context, Code, Input> for ReturnInput
+impl<Context, Code, Input> Handler<Context, Code, Input> for ReturnInput
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
 {
     type Output = Input;
 

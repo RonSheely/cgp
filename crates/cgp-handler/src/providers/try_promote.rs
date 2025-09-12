@@ -43,10 +43,9 @@ where
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input: Send, Output, Provider> Handler<Context, Code, Input>
-    for TryPromote<Provider>
+impl<Context, Code, Input, Output, Provider> Handler<Context, Code, Input> for TryPromote<Provider>
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
     Provider: AsyncComputer<Context, Code, Input, Output = Result<Output, Context::Error>>,
 {
     type Output = Output;
@@ -61,10 +60,10 @@ where
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input: Send, Provider, Output> AsyncComputer<Context, Code, Input>
+impl<Context, Code, Input, Provider, Output> AsyncComputer<Context, Code, Input>
     for TryPromote<Provider>
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
     Provider: Handler<Context, Code, Input, Output = Output>,
 {
     type Output = Result<Output, Context::Error>;

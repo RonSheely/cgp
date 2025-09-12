@@ -10,11 +10,7 @@ pub struct PromoteAsync<Provider>(pub PhantomData<Provider>);
 impl<Context, Code, Input, Output, Provider> AsyncComputer<Context, Code, Input>
     for PromoteAsync<Provider>
 where
-    Context: Async,
     Provider: Computer<Context, Code, Input, Output = Output>,
-    Code: Send,
-    Input: Send,
-    Output: Send,
 {
     type Output = Output;
 
@@ -27,11 +23,8 @@ where
 impl<Context, Code, Input, Output, Provider> Handler<Context, Code, Input>
     for PromoteAsync<Provider>
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
     Provider: TryComputer<Context, Code, Input, Output = Output>,
-    Code: Send,
-    Input: Send,
-    Output: Send,
 {
     type Output = Output;
 

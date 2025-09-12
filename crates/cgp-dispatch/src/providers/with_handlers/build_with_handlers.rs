@@ -42,10 +42,10 @@ where
 }
 
 #[cgp_provider]
-impl<Context, Code: Send, Input: Send, Output: Send, Builder: Send, Handlers, Res>
-    Handler<Context, Code, Input> for BuildWithHandlers<Output, Handlers>
+impl<Context, Code, Input, Output, Builder, Handlers, Res> Handler<Context, Code, Input>
+    for BuildWithHandlers<Output, Handlers>
 where
-    Context: HasAsyncErrorType,
+    Context: HasErrorType,
     Output: HasBuilder<Builder = Builder>,
     PipeHandlers<Handlers>: Handler<Context, Code, Builder, Output = Res>,
     Res: FinalizeBuild<Output = Output>,
