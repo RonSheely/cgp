@@ -1,6 +1,8 @@
 use core::marker::PhantomData;
 
-use crate::{Cons, Field, HasFields, IsNothing, MapType, Nil, PartialData, UpdateField};
+use crate::impls::IsNothing;
+use crate::traits::{HasFields, MapType, PartialData, UpdateField};
+use crate::types::{Cons, Field, Nil};
 
 /// Natural transformation from M1::Map<T> to M2::Map<T>
 pub trait TransformMap<M1: MapType, M2: MapType, T> {
