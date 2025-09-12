@@ -1,5 +1,5 @@
-use crate::impls::{CanBuildFrom, IsNothing, IsPresent};
-use crate::traits::{FinalizeBuild, HasBuilder, TransformMap, TransformMapFields};
+use cgp_field::impls::{CanBuildFrom, IsNothing, IsOptional, IsPresent};
+use cgp_field::traits::{FinalizeBuild, HasBuilder, TransformMap, TransformMapFields};
 
 pub trait CanBuildWithDefault<Source> {
     fn build_with_default(source: Source) -> Self;
@@ -25,7 +25,7 @@ where
 impl<Builder, Output> CanFinalizeWithDefault for Builder
 where
     Builder: TransformMapFields<TransformMapDefault, IsPresent>,
-    Builder::Output: FinalizeBuild<Output = Output>,
+    Builder::Output: FinalizeBuild<Target = Output>,
 {
     type Output = Output;
 
@@ -45,5 +45,11 @@ impl<T> TransformMap<IsPresent, IsPresent, T> for TransformMapDefault {
 impl<T: Default> TransformMap<IsNothing, IsPresent, T> for TransformMapDefault {
     fn transform_mapped(_value: ()) -> T {
         T::default()
+    }
+}
+
+impl<T: Default> TransformMap<IsOptional, IsPresent, T> for TransformMapDefault {
+    fn transform_mapped(value: Option<T>) -> T {
+        value.unwrap_or_default()
     }
 }
