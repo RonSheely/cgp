@@ -1,8 +1,10 @@
 use core::fmt::Display;
 use core::marker::PhantomData;
 
+use crate::traits::StaticFormat;
+
 /**
-    The `Char` type, a.k.a. `ι`, is used to represent _type-level_ list of
+    The `Char` type, a.k.a. `ζ`, is used to represent _type-level_ list of
     `char`s, which are equivalent to type-level strings.
 
     `Char` is a specialized version of [`Cons`](crate::types::Cons), with the
@@ -13,7 +15,7 @@ use core::marker::PhantomData;
 
     Instead of reusing `Cons`, we combine the use of `Cons` within `Char` so
     that its representation is more compact when shown in compiler error messages.
-    Similar to `Cons`, `Char` is also shown as `ι` to further improve its
+    Similar to `Cons`, `Char` is also shown as `ζ` to further improve its
     readability.
 
     We represent type-level strings as list of `Char`s, because it is currently
@@ -42,15 +44,13 @@ use core::marker::PhantomData;
     which would be shown with the shortened representation as:
 
     ```rust,ignore
-    type Hello = ι<'h', ι<'e', ι<'l', ι<'l', ι<'o', ε>>>>>;
+    type Hello = ζ<'h', ζ<'e', ζ<'l', ζ<'l', ζ<'o', ε>>>>>;
     ```
 */
 #[derive(Eq, PartialEq, Clone, Copy, Default)]
-pub struct ι<const CHAR: char, Tail>(pub PhantomData<Tail>);
+pub struct ζ<const CHAR: char, Tail>(pub PhantomData<Tail>);
 
-pub use ι as Char;
-
-use crate::traits::StaticFormat;
+pub use ζ as Char;
 
 impl<const CHAR: char, Tail> Display for Char<CHAR, Tail>
 where
@@ -58,15 +58,5 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         <Self as StaticFormat>::fmt(f)
-    }
-}
-
-impl<const CHAR: char, Tail> StaticFormat for Char<CHAR, Tail>
-where
-    Tail: StaticFormat,
-{
-    fn fmt(f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{CHAR}")?;
-        Tail::fmt(f)
     }
 }
