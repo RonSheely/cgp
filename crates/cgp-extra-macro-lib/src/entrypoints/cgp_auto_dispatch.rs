@@ -6,8 +6,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
 use syn::{
-    parse2, FnArg, GenericParam, Ident, ImplItem, ImplItemFn, ItemTrait, Lifetime, Pat, PatIdent,
-    ReturnType, TraitItemFn, Type, Visibility,
+    FnArg, GenericParam, Ident, ImplItem, ImplItemFn, ItemTrait, Lifetime, Pat, PatIdent,
+    ReturnType, TraitItemFn, Type, Visibility, parse2,
 };
 
 use crate::utils::to_camel_case_str;
@@ -348,11 +348,11 @@ fn derive_method_computer(
             arg_idents.push(Ident::new(&format!("arg_{}", i), pat_type.span()));
 
             let arg_type = pat_type.ty.as_mut();
-            if let Type::Reference(arg_type) = arg_type {
-                if arg_type.lifetime.is_none() {
-                    use_extra_life = true;
-                    arg_type.lifetime = Some(extra_life.clone());
-                }
+            if let Type::Reference(arg_type) = arg_type
+                && arg_type.lifetime.is_none()
+            {
+                use_extra_life = true;
+                arg_type.lifetime = Some(extra_life.clone());
             }
 
             arg_types.push(arg_type);
@@ -366,13 +366,12 @@ fn derive_method_computer(
 
     let return_type = &mut signature.output;
 
-    if let ReturnType::Type(_, return_type) = return_type {
-        if let Type::Reference(return_type) = return_type.as_mut() {
-            if return_type.lifetime.is_none() {
-                use_extra_life = true;
-                return_type.lifetime = Some(extra_life.clone());
-            }
-        }
+    if let ReturnType::Type(_, return_type) = return_type
+        && let Type::Reference(return_type) = return_type.as_mut()
+        && return_type.lifetime.is_none()
+    {
+        use_extra_life = true;
+        return_type.lifetime = Some(extra_life.clone());
     }
 
     if use_extra_life {

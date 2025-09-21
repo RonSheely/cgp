@@ -1,17 +1,17 @@
 use alloc::vec::Vec;
 
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::{Comma, Mut};
 use syn::{
-    parse2, parse_quote, Error, FnArg, GenericArgument, Ident, ItemTrait, PathArguments,
-    PathSegment, ReturnType, Signature, TraitItem, TraitItemFn, Type, TypePath,
+    Error, FnArg, GenericArgument, Ident, ItemTrait, PathArguments, PathSegment, ReturnType,
+    Signature, TraitItem, TraitItemFn, Type, TypePath, parse_quote, parse2,
 };
 
 use crate::derive_component::replace_self_type;
-use crate::derive_getter::getter_field::GetterField;
 use crate::derive_getter::FieldMode;
+use crate::derive_getter::getter_field::GetterField;
 
 pub fn parse_getter_fields(
     context_type: &Ident,
@@ -253,12 +253,11 @@ fn parse_single_segment_type_path(type_path: &TypePath) -> syn::Result<&PathSegm
 }
 
 fn try_parse_phantom_arg_type_path(segment: &PathSegment) -> Option<Type> {
-    if segment.ident == "PhantomData" {
-        if let PathArguments::AngleBracketed(args) = &segment.arguments {
-            if let Some(GenericArgument::Type(ty)) = args.args.first() {
-                return Some(ty.clone());
-            }
-        }
+    if segment.ident == "PhantomData"
+        && let PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(GenericArgument::Type(ty)) = args.args.first()
+    {
+        return Some(ty.clone());
     }
 
     None
@@ -267,13 +266,13 @@ fn try_parse_phantom_arg_type_path(segment: &PathSegment) -> Option<Type> {
 fn try_parse_option_ref(type_path: &TypePath) -> Option<&Type> {
     let segment = parse_single_segment_type_path(type_path).ok()?;
 
-    if segment.ident == "Option" {
-        if let PathArguments::AngleBracketed(args) = &segment.arguments {
-            let [arg] = Vec::from_iter(args.args.iter()).try_into().ok()?;
+    if segment.ident == "Option"
+        && let PathArguments::AngleBracketed(args) = &segment.arguments
+    {
+        let [arg] = Vec::from_iter(args.args.iter()).try_into().ok()?;
 
-            if let GenericArgument::Type(Type::Reference(type_ref)) = arg {
-                return Some(type_ref.elem.as_ref());
-            }
+        if let GenericArgument::Type(Type::Reference(type_ref)) = arg {
+            return Some(type_ref.elem.as_ref());
         }
     }
 
@@ -283,13 +282,13 @@ fn try_parse_option_ref(type_path: &TypePath) -> Option<&Type> {
 fn try_parse_mref(type_path: &TypePath) -> Option<&Type> {
     let segment = parse_single_segment_type_path(type_path).ok()?;
 
-    if segment.ident == "MRef" {
-        if let PathArguments::AngleBracketed(args) = &segment.arguments {
-            let [arg1, arg2] = Vec::from_iter(args.args.iter()).try_into().ok()?;
+    if segment.ident == "MRef"
+        && let PathArguments::AngleBracketed(args) = &segment.arguments
+    {
+        let [arg1, arg2] = Vec::from_iter(args.args.iter()).try_into().ok()?;
 
-            if let (GenericArgument::Lifetime(_), GenericArgument::Type(ty)) = (arg1, arg2) {
-                return Some(ty);
-            }
+        if let (GenericArgument::Lifetime(_), GenericArgument::Type(ty)) = (arg1, arg2) {
+            return Some(ty);
         }
     }
 
