@@ -7,8 +7,8 @@ use cgp_core::prelude::*;
 
 pub struct RaiseAnyhowError;
 
-#[cgp_provider]
-impl<Context, E> ErrorRaiser<Context, E> for RaiseAnyhowError
+#[cgp_impl(RaiseAnyhowError)]
+impl<Context, E> ErrorRaiser<E> for Context
 where
     Context: HasErrorType<Error = Error>,
     E: StdError + Send + Sync + 'static,
@@ -18,8 +18,8 @@ where
     }
 }
 
-#[cgp_provider]
-impl<Context, Detail> ErrorWrapper<Context, Detail> for RaiseAnyhowError
+#[cgp_impl(RaiseAnyhowError)]
+impl<Context, Detail> ErrorWrapper<Detail> for Context
 where
     Context: HasErrorType<Error = Error>,
     Detail: Display + Send + Sync + 'static,
