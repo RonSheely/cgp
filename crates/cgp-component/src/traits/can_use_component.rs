@@ -1,4 +1,4 @@
-use crate::{HasCgpProvider, IsProviderFor};
+use crate::{DelegateComponent, IsProviderFor};
 
 /**
     This is a convenient type alias that is used in the same way as [`IsProviderFor`],
@@ -6,8 +6,8 @@ use crate::{HasCgpProvider, IsProviderFor};
     that implements the provider trait.
 
     The `CanUseComponent` trait is automatically implemented for any CGP `Context` type
-    that implements the `HasCgpProvider` trait, and when `Contex::CgpProvider` implements
-    `IsProviderFor<Component, Context, Params>`.
+    that implements the `DelegateComponent<Component>` trait, and when `Contex::Delegate`
+    implements `IsProviderFor<Component, Context, Params>`.
 
     This trait is used by `check_components!` to check whether a `Context` implements
     a given `Component` through its provider. When there are unsatisfied constraints,
@@ -17,7 +17,7 @@ pub trait CanUseComponent<Component, Params: ?Sized = ()> {}
 
 impl<Context, Component, Params: ?Sized> CanUseComponent<Component, Params> for Context
 where
-    Context: HasCgpProvider,
-    Context::CgpProvider: IsProviderFor<Component, Context, Params>,
+    Context: DelegateComponent<Component>,
+    Context::Delegate: IsProviderFor<Component, Context, Params>,
 {
 }
